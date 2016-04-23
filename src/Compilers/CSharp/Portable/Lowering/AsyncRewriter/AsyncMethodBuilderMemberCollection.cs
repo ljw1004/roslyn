@@ -250,8 +250,14 @@ namespace Microsoft.CodeAnalysis.CSharp
                 TryGetWellKnownMethodAsMember(F, awaitOnCompleted, builderType, requireWellKnownType, out awaitOnCompletedMethod) &&
                 TryGetWellKnownMethodAsMember(F, awaitUnsafeOnCompleted, builderType, requireWellKnownType, out awaitUnsafeOnCompletedMethod) &&
                 TryGetWellKnownMethodAsMember(F, start, builderType, requireWellKnownType, out startMethod) &&
-                TryGetWellKnownMethodAsMember(F, setStateMachine, builderType, requireWellKnownType, out setStateMachineMethod))
+                TryGetWellKnownMethodAsMember(F, setStateMachine, builderType, requireWellKnownType, out setStateMachineMethod) &&
+                HasOnlyConstraint(F, startMethod.TypeParameters[0], WellKnownType.System_Runtime_CompilerServices_IAsyncStateMachine) &&
+                HasOnlyConstraint(F, awaitOnCompletedMethod.TypeParameters[0], WellKnownType.System_Runtime_CompilerServices_INotifyCompletion) &&
+                HasOnlyConstraint(F, awaitOnCompletedMethod.TypeParameters[1], WellKnownType.System_Runtime_CompilerServices_IAsyncStateMachine) &&
+                HasOnlyConstraint(F, awaitUnsafeOnCompletedMethod.TypeParameters[0], WellKnownType.System_Runtime_CompilerServices_ICriticalNotifyCompletion) &&
+                HasOnlyConstraint(F, awaitUnsafeOnCompletedMethod.TypeParameters[1], WellKnownType.System_Runtime_CompilerServices_IAsyncStateMachine))
             {
+
                 collection = new AsyncMethodBuilderMemberCollection(
                     builderType,
                     resultType,
@@ -268,6 +274,22 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             collection = default(AsyncMethodBuilderMemberCollection);
             return false;
+        }
+
+        private static bool HasOnlyConstraint(SyntheticBoundNodeFactory F, TypeParameterSymbol typeParameter, WellKnownType constraint)
+        {
+            if (!typeParameter.HasConstructorConstraint &&
+                !typeParameter.HasValueTypeConstraint &&
+                !typeParameter.HasReferenceTypeConstraint &&
+                typeParameter.ConstraintTypes.Length == 1 &&
+                typeParameter.ConstraintTypes[0] == F.WellKnownType(constraint))
+            {
+                return true;
+            }
+
+            object[] args = new object[] { typeParameter.MetadataName, F.WellKnownType(constraint).MetadataName };
+            CSDiagnostic error = new CSDiagnostic(new CSDiagnosticInfo(ErrorCode.ERR_MissingPredefinedMember, args), F.Syntax.Location, false);
+            throw new SyntheticBoundNodeFactory.MissingPredefinedMember(error);
         }
 
         private static bool TryGetWellKnownMethodAsMember(SyntheticBoundNodeFactory F, WellKnownMember wellKnownMethod, NamedTypeSymbol containingType, bool requireWellKnownType, out MethodSymbol methodSymbol)
