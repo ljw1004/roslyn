@@ -220,11 +220,67 @@ This scheme wouldn't be able to represent the WinRT types `IAsyncOperationWithPr
 
 
 
-## Discuss: async type inference
+## Discuss: overload resolution with async lambdas
+
+There's a thorny issue around overload resolution. The proposal gives on solution for it. I want to outline the problem and discuss alternatives.
+
+**Example1:** This is allowed and infers `T = int`. Effectively, type inference can "dig through" `Task<T>`. This is a really common pattern.
+```csharp
+// Example 1
+void f<T>(Func<Task<T>> lambda)
+f(async () => 3); // infers T = int
+```
+
+**Example2:** This is also allowed and infers `T = Task<int>`. Effectively, type inference can *synthesize* the type `Task<>` based solely on the `async` modifier. It's a weird behavior, one that doesn't happen elsewhere in the language, and is typically the wrong thing to do (because it's rare that you can write a correct `f` which handles both async Task-returning lambdas and non-async lambdas).
+```csharp
+// Example 2
+void f<T>(Func<T> lambda)
+f(async () => 3); // infers T = Task<int>
+```
+
+
+**Example3:** When the two examples above are overloaded, the compiler has rules to pick the winner. In particular, if two overload candidates have identical parameter types (after inferred types have been substituted in) then it uses the *more specific candidate* tie-breaker rule ([Better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member)). This tie-breaker ends up being used a lot, particularly for things like `Task.Run`.
+```csharp
+// Example 3
+void f<T>(Func<Task<T>> lambda)   // infers T = int and is applicable
+void f<T>(Func<T> lambda)         // infers T = Task<int> and is applicable
+f(async () => 3);   // picks more specific first overload with T = int
+```
+
+**Example4:** We want type inference to be able to dig through other Tasklikes as well, not just `Task`. But we can never change the Example3 rule which gives privileged inference to `Task<T>`:
+```csharp
+// Example 4
+void f<T>(Func<MyTask<T>> lambda)
+f(async () => 3);   // we want this to work and infer T = int
+
+void f<T>(Func<T> lambda)
+f(async () => 3);   // for back-compat, this will always infer T = Task<int>
+```
+
+**Example5:** So what do we want to happen when the two cases of Example4 are overloaded?
+```csharp
+// Example 5
+void f<T>(Func<MyTask<T>> lambda)  // infers T = int and is applicable
+void f<T>(Func<T> lambda)          // infers T = Task<int> and is applicable
+f(async () => 3);   // what should this do?
+```
+If we do indeed change type inference to dig through Tasklikes, but we don't change the rules for overload resolution, then it will give an **ambiguous overload** error. That's because it looks at the two candidates `f(Func<MyTask<int>>)` and `f(Func<Task<int>>)`...
+* The two don't have identical parameter types, so it won't go through the tie-breaker rules about *more specific*
+* Instead it looks at the rules for *better function member*
+* This requires to judge whether the conversion from expression `async()=>3` to type `Func<MyTask<int>>` or to type `Func<Task<int>>` is a [better conversion from expression](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-from-expression)
+* This requires to judge whether the type `Func<MyTask<int>>` or `Func<Task<int>>` is a [better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target)
+* This requires to judge whether there is an implicit conversion from `MyTask<int>` to `Task<int>` or vice versa.* 
+
+In general there won't be implicit conversions between arbitrary tasklikes and `Task`, and we shouldn't expect there to be. But that's beside the point. The only way we'll get a good overload resolution disambiguation between the candidates is if we go down the *tie-breaker* path to pick the more specific candidate. Once we've started down the *better function member* route, it's already too late.
+
+**Problem statement:** Somehow, Example5 should pick the first candidate on grounds that it's more specific.
+
+... [TODO]
+
 
 ## Discuss: overload resolution
 
-
+## Discuss: IObservable
 
 ----------------------
 TODO:
