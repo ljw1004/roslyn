@@ -251,11 +251,11 @@ namespace Microsoft.CodeAnalysis.CSharp
                 TryGetWellKnownMethodAsMember(F, awaitUnsafeOnCompleted, builderType, requireWellKnownType, out awaitUnsafeOnCompletedMethod) &&
                 TryGetWellKnownMethodAsMember(F, start, builderType, requireWellKnownType, out startMethod) &&
                 TryGetWellKnownMethodAsMember(F, setStateMachine, builderType, requireWellKnownType, out setStateMachineMethod) &&
-                HasOnlyConstraint(F, startMethod.TypeParameters[0], WellKnownType.System_Runtime_CompilerServices_IAsyncStateMachine) &&
-                HasOnlyConstraint(F, awaitOnCompletedMethod.TypeParameters[0], WellKnownType.System_Runtime_CompilerServices_INotifyCompletion) &&
-                HasOnlyConstraint(F, awaitOnCompletedMethod.TypeParameters[1], WellKnownType.System_Runtime_CompilerServices_IAsyncStateMachine) &&
-                HasOnlyConstraint(F, awaitUnsafeOnCompletedMethod.TypeParameters[0], WellKnownType.System_Runtime_CompilerServices_ICriticalNotifyCompletion) &&
-                HasOnlyConstraint(F, awaitUnsafeOnCompletedMethod.TypeParameters[1], WellKnownType.System_Runtime_CompilerServices_IAsyncStateMachine))
+                HasOnlyConstraint(F, startMethod, 0, WellKnownType.System_Runtime_CompilerServices_IAsyncStateMachine) &&
+                HasOnlyConstraint(F, awaitOnCompletedMethod, 0, WellKnownType.System_Runtime_CompilerServices_INotifyCompletion) &&
+                HasOnlyConstraint(F, awaitOnCompletedMethod, 1, WellKnownType.System_Runtime_CompilerServices_IAsyncStateMachine) &&
+                HasOnlyConstraint(F, awaitUnsafeOnCompletedMethod, 0, WellKnownType.System_Runtime_CompilerServices_ICriticalNotifyCompletion) &&
+                HasOnlyConstraint(F, awaitUnsafeOnCompletedMethod, 1, WellKnownType.System_Runtime_CompilerServices_IAsyncStateMachine))
             {
 
                 collection = new AsyncMethodBuilderMemberCollection(
@@ -276,8 +276,12 @@ namespace Microsoft.CodeAnalysis.CSharp
             return false;
         }
 
-        private static bool HasOnlyConstraint(SyntheticBoundNodeFactory F, TypeParameterSymbol typeParameter, WellKnownType constraint)
+        private static bool HasOnlyConstraint(SyntheticBoundNodeFactory F, MethodSymbol method, int typeParameterIndex, WellKnownType constraint)
         {
+            Debug.Assert(method.TypeParameters.Length > typeParameterIndex, "Only call HasOnlyConstraint if you already know that type parameter is present");
+
+            var typeParameter = method.TypeParameters[typeParameterIndex];
+
             if (!typeParameter.HasConstructorConstraint &&
                 !typeParameter.HasValueTypeConstraint &&
                 !typeParameter.HasReferenceTypeConstraint &&
@@ -287,7 +291,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 return true;
             }
 
-            object[] args = new object[] { typeParameter.MetadataName, F.WellKnownType(constraint).MetadataName };
+            object[] args = new object[] { method.ContainingType.MetadataName, method.MetadataName };
             CSDiagnostic error = new CSDiagnostic(new CSDiagnosticInfo(ErrorCode.ERR_MissingPredefinedMember, args), F.Syntax.Location, false);
             throw new SyntheticBoundNodeFactory.MissingPredefinedMember(error);
         }

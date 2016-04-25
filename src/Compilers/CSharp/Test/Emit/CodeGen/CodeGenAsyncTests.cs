@@ -3410,9 +3410,9 @@ namespace System.Runtime.CompilerServices { public class TasklikeAttribute : Att
 
             var comp1 = CreateCompilation(source1, options: TestOptions.DebugExe);
             comp1.VerifyEmitDiagnostics(
-                // (8,22): error CS0656: Missing compiler required member 'TSM.IAsyncStateMachine'
+                // (8,22): error CS0656: Missing compiler required member 'MyTaskBuilder.Start'
                 //     async MyTask f() { await (Task)null; }
-                Diagnostic(ErrorCode.ERR_MissingPredefinedMember, "{ await (Task)null; }").WithArguments("TSM", "IAsyncStateMachine").WithLocation(8, 22)
+                Diagnostic(ErrorCode.ERR_MissingPredefinedMember, "{ await (Task)null; }").WithArguments("MyTaskBuilder", "Start").WithLocation(8, 22)
                 );
 
             var source2 = @"
@@ -3445,9 +3445,9 @@ namespace System.Runtime.CompilerServices { public class TasklikeAttribute : Att
 
             var comp2 = CreateCompilation(source2, options: TestOptions.DebugExe);
             comp2.VerifyEmitDiagnostics(
-                // (8,22): error CS0656: Missing compiler required member 'TA.ICriticalNotifyCompletion'
+                // (8,22): error CS0656: Missing compiler required member 'MyTaskBuilder.AwaitUnsafeOnCompleted'
                 //     async MyTask f() { await (Task)null; }
-                Diagnostic(ErrorCode.ERR_MissingPredefinedMember, "{ await (Task)null; }").WithArguments("TA", "ICriticalNotifyCompletion").WithLocation(8, 22)
+                Diagnostic(ErrorCode.ERR_MissingPredefinedMember, "{ await (Task)null; }").WithArguments("MyTaskBuilder", "AwaitUnsafeOnCompleted").WithLocation(8, 22)
                 );
 
         }
