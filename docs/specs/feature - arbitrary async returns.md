@@ -70,24 +70,26 @@ The overload resolution rules for [better function member](https://github.com/lj
 
 The rules for [anonymous function conversion](https://github.com/ljw1004/csharpspec/blob/gh-pages/conversions.md#anonymous-function-conversions) currently allow an async lambda to be converted to a delegate type whose return type is either `void` or `Task` or `Task<T>`; this will be changed to let them return `void` or any non-generic `Tasklike` or any generic `Tasklike<T>`.
 
-The [inferred return type](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#inferred-return-type) of a lambda expression currently takes into account the parameter types of the delegate to which the lambda is being converted. With this feature, it now also takes into account the return type of that delegate:
-* If the lambda is async and has inferred *result type* `void`,
+The [inferred return type](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#inferred-return-type) of a lambda expression currently takes into account the parameter types of the delegate to which the lambda is being converted. With this feature, the inferred return type of an async lambda now also takes into account the return type of that delegate:
+* If the async lambda has inferred *result type* `void`:
   * if the return type of the delegate is `U` where `U` is a non-generic tasklike, then the inferred *return type* is `U`
   * otherwise the inferred *return type* is `Task`
-* Otherwise, if the lambda is async and has inferred *result type* `V1`,
-  * if the return type of the delegate is `U<V2>` where `U` is a generic tasklike, then the inferred *return type* is `U<V1>
+* Otherwise, the async lambda has inferred *result type* `V1`:
+  * if the return type of the delegate is `U<V2>` where `U` is a generic tasklike, then the inferred *return type* is `U<V1>`
   * otherwise the inferred *return type* is `Task<V2>`
-* Otherwise, non-async lambdas will continue to be treated exactly as they are now.
 
 
 **Semantics for execution of an async method**
 
 Define the *builder type* of a tasklike as follows:
-* For non-generic `Tasklike` with attribute `[Tasklike(typeof(Builder))]`, the builder type is the `Builder` argument of the attribute. It is an error if the type `Builder` is generic.
-* For generic `Tasklike<T>` with attribute `[Tasklike(typeof(Builder<>))]`, the builder type is the `Builder<T>` argument of the attribute, constructed from the type argument `T` of the tasklike. It is an error if the argument of the attribute isn't an open generic type, and an error if the type `Builder` has 0 or more than 1 generic type arguments.
-* If a non-generic tasklike lacks the attribute and is `System.Threading.Tasks.Task`, the builder type is `System.Runtime.CompilerService.AsyncTaskMethodBuilder`
-* If a generic tasklike lacks the attribute and is `System.Threading.Tasks.Task<T>`, the builder type is `System.Runtime.CompilerServices.AsyncTaskMethodBuilder<T>`.
-* It is an error if the builder type isn't public.
+* For non-generic `Tasklike`
+  * If it has attribute `[Tasklike(typeof(Builder))]`, the builder type is the `Builder` argument of the attribute
+  * Otherwise the builder type is `System.Runtime.CompilerService.AsyncTaskMethodBuilder`
+  * It is an error if the builder type is generic, or isn't public.
+* For a generic `Tasklike<T>`
+  * If it has attribute `[Tasklike(typeof(Builder<>))]`, the builder type is the `Builder<T>`, constructed from the open type of the attribute argument and the type argument of the Tasklike
+  * Otherwise the builder type is `System.Runtime.CompilerService.AsyncTaskMethodBuilder<T>`, constructed from the open type `System.Runtime.CompilerServices.AsyncTaskMethodBuilder<>` and the type argument of the Tasklike
+  * It is an error if the builder type has 0 or more than 1 generic type arguments, or isn't public.
 
 When an async tasklike-returning method is invoked,
 * It calls `var builder = BuilderType.Create()` to create a new instance of the builder type. It is an error if this static method doesn't exist or isn't public or doesn't return `BuilderType`.
@@ -203,6 +205,20 @@ var xk = k(async () => {return 3;});
 
 ## Discuss: async method interacts with the builder instance
 
+In the "async pattern", cancellation and progress are done with parameters:
+```csharp
+void f(int param, CancellationToken cancel = default(CancellationToken), IProgress<string> progress = null)
+```
+But for some tasklikes, cancellation and progress are faculties of the tasklike (equivalently, of its builder)...
+```csharp
+async IAsyncActionWithProgress TestAsync() { }
+var a = TestAsync();
+```
+
+
+This scheme wouldn't be able to represent the WinRT types `IAsyncOperationWithProgress` or `IAsyncActionWithProgress`. It also wouldn't be able to represent the fact that WinRT async interfaces have a cancel method upon them. We might consider allowing the async method to access its own builder instance via some special keyword, e.g. `_thisasync.cancel.ThrowIfCancellationRequested()`, but that seems too hacky and I think it's not worth it.
+
+
 
 ## Discuss: async type inference
 
@@ -214,9 +230,6 @@ var xk = k(async () => {return 3;});
 TODO:
 
 
-## Limitations
-
-This scheme wouldn't be able to represent the WinRT types `IAsyncOperationWithProgress` or `IAsyncActionWithProgress`. It also wouldn't be able to represent the fact that WinRT async interfaces have a cancel method upon them. We might consider allowing the async method to access its own builder instance via some special keyword, e.g. `_thisasync.cancel.ThrowIfCancellationRequested()`, but that seems too hacky and I think it's not worth it.
 
 ## Compilation notes and edge cases
 
