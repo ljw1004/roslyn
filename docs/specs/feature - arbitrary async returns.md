@@ -215,6 +215,7 @@ async IAsyncActionWithProgress TestAsync() { }
 var a = TestAsync();
 ```
 
+[TODO: write more here. We can achieve it by custom awaiters that the builder recognizes. Also show an IObservable example with disposal and cancellation. Also finish writing out the IAsyncActionWithProgress example.]
 
 This scheme wouldn't be able to represent the WinRT types `IAsyncOperationWithProgress` or `IAsyncActionWithProgress`. It also wouldn't be able to represent the fact that WinRT async interfaces have a cancel method upon them. We might consider allowing the async method to access its own builder instance via some special keyword, e.g. `_thisasync.cancel.ThrowIfCancellationRequested()`, but that seems too hacky and I think it's not worth it.
 
