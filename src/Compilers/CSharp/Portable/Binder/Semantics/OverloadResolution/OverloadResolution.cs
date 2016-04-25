@@ -1593,23 +1593,33 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private TypeSymbol ReplaceTasklikeWithTask(TypeSymbol type)
         {
+            // In this method we use a shortcut in the common case that the type isn't tasklike:
+            // we merely return the identical type reference that was handed to us.
+
             if (type.IsNongenericTaskOrTasklike(Compilation))
             {
                 var task = Compilation.GetWellKnownType(WellKnownType.System_Threading_Tasks_Task);
+                if (type == task) return type; // shortcut
                 return task;
             }
             else if (type.IsGenericTaskOrTasklike(Compilation))
             {
                 var t = type as NamedTypeSymbol;
-                Debug.Assert(t.TypeArguments.Length == 1); // that's part of the definition of a generic tasklike
+                Debug.Assert(t.TypeArguments.Length == 1, "generic tasklikes by definition have one type argument");
                 var targ = ReplaceTasklikeWithTask(t.TypeArguments[0]);
                 var task = Compilation.GetWellKnownType(WellKnownType.System_Threading_Tasks_Task_T);
+                if (targ == t.TypeArguments[0] && t.ConstructedFrom == task) return type; // shortcut
                 return task.Construct(targ);
             }
             else if (type.Kind == SymbolKind.NamedType)
             {
                 var t = type as NamedTypeSymbol;
-                if (t.TypeArguments.Length == 0) return t;
+                bool allSame = true;
+                foreach (var targ in t.TypeArguments)
+                {
+                    if (targ != ReplaceTasklikeWithTask(targ)) { allSame = false; break; }
+                }
+                if (allSame) return type; // shortcut
                 var targs = t.TypeArguments.Select(ReplaceTasklikeWithTask);
                 return t.ConstructedFrom.Construct(targs);
             }
@@ -1617,6 +1627,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             {
                 var t = type as ArrayTypeSymbol;
                 var targ = ReplaceTasklikeWithTask(t.ElementType);
+                if ((object)targ == t.ElementType) return type; // shortcut
                 return Compilation.CreateArrayTypeSymbol(targ, t.Rank);
             }
             else
