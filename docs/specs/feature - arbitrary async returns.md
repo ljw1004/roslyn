@@ -3,22 +3,24 @@
 In C#6, methods must return either `void` or `Task` or `Task<T>`. This proposed feature allows them to return any *tasklike* type.
 
 ----------------------------------
+
 * **Download:** [ArbitraryAsyncReturns.zip](https://github.com/ljw1004/roslyn/raw/features/async-return/ArbitraryAsyncReturns.zip) [22mb]
 * **Install:** Unzip the file. Quit VS. Double-click to install in this order: (1) Roslyn.VisualStudio.Setup.vsix, (2) Roslyn.Compilers.Extension.vsix, (3) ExpressionEvaluatorPackage.vsix. I don't think the others are needed.
 * **Test:** the zip file contains a sample project
 * **Uninstall:** I've usually been able to go to within Visual Studio to Tools>Extensions, search for Roslyn, and uninstall in the order (1) Expression Evaluators, (2) Compilers, (3) Language Service. Once that resulted in a broken VS that was unable to load C# projects, and I unbroke it by deleting the entire folder `%userprofile%\AppData\Roaming\Microsoft\VisualStudio` and `%userprofile%\AppData\Local\Microsoft\VisualStudio`. Doing so reset all my VS settings to default.
 * **Watch:** I coded this prototype live in livecoding.tv, and you can watch recordings if you want: [livecoding.tv/ljw1004](https://www.livecoding.tv/ljw1004/)
 * **Discuss:** please go to the [discussion thread](...)
+
 ----------------------------------
 
 The primary benefit is to allow a `ValueTask<T>` that reduces the "async overhead cost" on the hot path:
 ![perf](feature - arbitrary async returns.png)
 * Such a `ValueTask<T>` has already been checked into corefx ([corefx#4857](https://github.com/dotnet/corefx/pull/4857))
-* Some teams decide the perf benefits of `ValueTask<T>` are so great that they're worth the cumbersome manual code today -- e.g. `System.Xml` ([corefx#4936](https://github.com/dotnet/corefx/pull/4936)), which had previously been using an internal form of it.
-* Other teams decide that the cumbersome code is so ugly they're willing to forego the perf benefits for now, at least until the C# compiler gets support for `ValueTask<T>` -- e.g. ASP.NET FormReader ([aspnet#556](https://github.com/aspnet/HttpAbstractions/pull/556#issuecomment-199974553)). Using `ValueTask<T>` would have gotten memory down from 440MB to 0.5MB.
+* Some teams decide the perf benefits of `ValueTask<T>` are so great that they're worth the cumbersome manual code you have to write today (rightmost column) -- e.g. `System.Xml` ([corefx#4936](https://github.com/dotnet/corefx/pull/4936)), which had previously been using an internal form of `ValueTask`.
+* Other teams decide that the cumbersome code is so ugly they're willing to forego the perf benefits for now, at least until the C# compiler gets support for `ValueTask<T>` -- e.g. ASP.NET FormReader ([aspnet#556](https://github.com/aspnet/HttpAbstractions/pull/556#issuecomment-199974553)). Using `ValueTask<T>` would have gotten memory down from 440MB to 0.5MB in the test reported in that thread.
 * I believe most folks will continue to use `Task<T>` most of the time, just like they don't bother with `.ConfigureAwait(false)` most of the time. That's because `Task` has so many nice combinators.
 
-> (Could we build upon ValueTask-returning asyncs with additional compiler unrolling, to achieve the optimum perf? The unrolled version has different semantics around context-capture so it seems doubtful [issue#10449](https://github.com/dotnet/roslyn/issues/10449). In any case, the huge perf win comes from eliminating the heap allocation, and further perf improvements are negligble.)
+> (This feature proposal merely allows the middle column, to remove the necessity of heap allocation and to improve perf somewhat. Could we build upon this feature proposal to allow the rightmost column, with additional compiler unrolling to achieve optimum perf? It seems hard because the unrolled version has different semantics aroud context-capture, and the incremental perf wins seem comparitively minor. See [issue#10449](https://github.com/dotnet/roslyn/issues/10449).)
 
 
 
@@ -40,7 +42,7 @@ ITask<object> = TestAsync();
 // It would be neater if you could just return directly:
 async IObservable<int> TestAsync(int p, int q) { ... }
 ```
-Actually that `IObservable` example is still up for discussion. It's not clear whether `IObservable` would prefer to be like an async method or an async enumerable method.
+Actually that `IObservable` example is still up for discussion. It's not clear whether `IObservable` would prefer to be like an async method or an async enumerable method. We need to hear from `IObservable` experts.
 
 
 A third "benefit" (it's arguable whether this is a benefit at all) is that people will be able to weave hooks into their async methods, for instance to call into their own function before and after every cold-path await:
@@ -56,28 +58,36 @@ async InstrumentedTask TestAsync()
 
 # Proposal
 
-A *non-generic tasklike* is any non-generic type with the attribute `[System.Runtime.CompilerServices.Tasklike(typeof(...))]` on it, or the type `System.Threading.Tasks.Task`.
+Define:
+* A *non-generic tasklike* is any non-generic type with the attribute `[System.Runtime.CompilerServices.Tasklike(typeof(...))]` on it, or the type `System.Threading.Tasks.Task`.
+* A *generic tasklike* is any generic type with arity 1 with the same attribute, or the type `System.Threading.Tasks.Task<T>`.
 
-A *generic tasklike* is any generic type with arity 1 with the same attribute, or the type `System.Threading.Tasks.Task<T>`.
-
-The rules for [async functions](https://github.com/ljw1004/csharpspec/blob/gh-pages/classes.md#async-functions) currently allow an async method to return either `void` or `Task` or `Task<T>`; this will be changed to allow it to return any nong-generic `Tasklike` or generic `Tasklike<T>`.
+The rules for [async functions](https://github.com/ljw1004/csharpspec/blob/gh-pages/classes.md#async-functions) currently allow an async method to return either `void` or `Task` or `Task<T>`; this will be changed to allow it to return either `void`, or any nong-generic `Tasklike`, or generic `Tasklike<T>`.
 
 The rules for [evaluation of task-returning async functions](https://github.com/ljw1004/csharpspec/blob/gh-pages/classes.md#evaluation-of-a-task-returning-async-function) currently talk in general terms about "generating an instance of the returned task type" and "initially incomplete state" and "moved out of the incomplete state". These will be changed to spell out how that returned tasklike is constructed and how its state is transitioned, as detailed below.
 
-The rules for [anonymous function conversion](https://github.com/ljw1004/csharpspec/blob/gh-pages/conversions.md#anonymous-function-conversions) currently allow an async lambda to be converted to a delegate type whose return type is either `void` or `Task` or `Task<T>`; this will be changed to let them return any non-generic `Tasklike` or generic `Tasklike<T>`.
+The overload resolution rules for [better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member) currently say that if two applicable candidates have identical parameter types `{P1...Pn}` and `{Q1...Qn}` then we use tie-breakers to determine which is the better one. With this feature, this will be modified to use tie-breakers if the parameter types are identical *up to tasklikes*: in other words, for purposes of this identity comparison, all non-generic `Tasklike`s are deemed identical to each other, and all generic `Tasklike<T>`s for a given `T` are deemed identical to each other.
 
-The [inferred return type](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#inferred-return-type) of a lambda expression currently takes into account the parameter types of the delegate to which the lambda is being converted. With this feature, it now also takes into account the return type of that delegate: if the lambda is async, and the return type of the delegate is `U<T>` where `U` is a tasklike, then the inferred return type is `U<InferredResultType>`; otherwise it remains `Task<InferredResultType>`.
+The rules for [anonymous function conversion](https://github.com/ljw1004/csharpspec/blob/gh-pages/conversions.md#anonymous-function-conversions) currently allow an async lambda to be converted to a delegate type whose return type is either `void` or `Task` or `Task<T>`; this will be changed to let them return `void` or any non-generic `Tasklike` or any generic `Tasklike<T>`.
 
-The overload resolution rules for [better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member) currently say that if two applicable candidates have identical parameter types `{P1...Pn}` and `{Q1...Qn}` then we use tie-breakers to determine which is the better one. With this feature, this is modified to use tie-breakers if the parameter types *are identical up to tasklikes*: for purposes of this identity comparison, all non-generic `Tasklike`s are deemed identical to each other, and all generic `Tasklike<T>`s for a given `T` are deemed identical to each other.
+The [inferred return type](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#inferred-return-type) of a lambda expression currently takes into account the parameter types of the delegate to which the lambda is being converted. With this feature, it now also takes into account the return type of that delegate:
+* If the lambda is async and has inferred *result type* `void`,
+  * if the return type of the delegate is `U` where `U` is a non-generic tasklike, then the inferred *return type* is `U`
+  * otherwise the inferred *return type* is `Task`
+* Otherwise, if the lambda is async and has inferred *result type* `V1`,
+  * if the return type of the delegate is `U<V2>` where `U` is a generic tasklike, then the inferred *return type* is `U<V1>
+  * otherwise the inferred *return type* is `Task<V2>`
+* Otherwise, non-async lambdas will continue to be treated exactly as they are now.
+
 
 **Semantics for execution of an async method**
 
 Define the *builder type* of a tasklike as follows:
-* For non-generic `Tasklike` with attribute `[Tasklike(typeof(Builder))]`, the builder type is `Builder`.
-* For generic `Tasklike<T>` with attribute `[Tasklike(typeof(Builder<>))]`, the builder type is `Builder<T>`.
+* For non-generic `Tasklike` with attribute `[Tasklike(typeof(Builder))]`, the builder type is the `Builder` argument of the attribute. It is an error if the type `Builder` is generic.
+* For generic `Tasklike<T>` with attribute `[Tasklike(typeof(Builder<>))]`, the builder type is the `Builder<T>` argument of the attribute, constructed from the type argument `T` of the tasklike. It is an error if the argument of the attribute isn't an open generic type, and an error if the type `Builder` has 0 or more than 1 generic type arguments.
 * If a non-generic tasklike lacks the attribute and is `System.Threading.Tasks.Task`, the builder type is `System.Runtime.CompilerService.AsyncTaskMethodBuilder`
 * If a generic tasklike lacks the attribute and is `System.Threading.Tasks.Task<T>`, the builder type is `System.Runtime.CompilerServices.AsyncTaskMethodBuilder<T>`.
-* The builder type must be public. It is an error if the builder's generic arity doesn't match the tasklike's generic arity.
+* It is an error if the builder type isn't public.
 
 When an async tasklike-returning method is invoked,
 * It calls `var builder = BuilderType.Create()` to create a new instance of the builder type. It is an error if this static method doesn't exist or isn't public or doesn't return `BuilderType`.
@@ -85,19 +95,19 @@ When an async tasklike-returning method is invoked,
 * It then retrieves the `U Task {get;}` property on `builder`. It is an error if this instance property doesn't exist or isn't public or if its property type `U` isn't identical to the return type of the async tasklike-returning method.
 
 Execution of `sm.MoveNext()` might cause other builder methods to be invoked:
-* The first cold await might cause a copy of the builder (if `BuilderType` is a struct) or a copy of a reference to the builder (if `BuilderType` is a class) to be placed on the heap. In this case the builder's `void SetStateMachine(IAsyncStateMachine sm)` method is invoked. It is an error if this instance method doesn't exist or isn't public. (TODO: I'm not sure why it calls this!)
-* If the async method completes succesfully, it invokes the builder's `void SetResult()` method (in case of a non-generic tasklike), or the builder's `void SetResult(T result)` method (in case of a generic tasklike). It is an error if this instance method doesn't exist or isn't public.
+* The first cold await might cause a copy of the builder (if `BuilderType` is a struct) or a copy of a reference to the builder (if `BuilderType` is a class) to be placed on the heap. In this case the builder's `void SetStateMachine(IAsyncStateMachine sm)` method is invoked. It is an error if this instance method doesn't exist or isn't public. (**TODO:** I'm not sure when and why it calls this! after all, the builder is given a state-machine in both Start and AwaitOnCompleted. So why keep it?)
+* If the async method completes succesfully, it invokes the builder's `void SetResult()` method (in case of a non-generic tasklike), or the builder's `void SetResult(T result)` method with the operand of the return statement (in case of a generic tasklike). It is an error if this instance method doesn't exist or isn't public.
 * If the async method fails with an exception, it invokes the builder's `void SetException(System.Exception ex)` method. It is an error if this instance method doesn't exist or isn't public.
 * If the async method executes an `await e` operation, it invokes `var awaiter = e.GetAwaiter()`.
-  * If this awaiter implements `ICriticalNotifyCompletion` and the `IsCompleted` property is false, then it calls the builder's `void AwaitUnsafeOnCompleted<TA,TSM>(ref TA awaiter, ref TSM sm) where TA : ICriticalNotifyCompletion where TSM : IAsyncStateMachine`. It is an error if this instance method doesn't exist or isn't public or has the wrong constraints. The builder is expected to call `awaiter.UnsafeOnCompleted(action)` with some `action` that will cause `sm.MoveNext()` to be invoked once.
-  * If this awaiter implements `INotifyCompletion` and the `IsCompleted` property is false, then it calls the builder's `void AwaitOnCompleted<TA,TSM>(ref TA awaiter, ref TSM sm) where TA : INotifyCompletion where TSM : IAsyncStateMachine`. It is an error if this instance method doesn't exist or isn't public or has the wrong constraints. Again the builder is expected to call `awaiter.OnCompleted(action)` similarly.
+  * If this awaiter implements `ICriticalNotifyCompletion` and the `IsCompleted` property is false, then it calls the builder's `void AwaitUnsafeOnCompleted<TA,TSM>(ref TA awaiter, ref TSM sm) where TA : ICriticalNotifyCompletion where TSM : IAsyncStateMachine`. It is an error if this instance method doesn't exist or isn't public or has the wrong constraints. The builder is expected to call `awaiter.UnsafeOnCompleted(action)` with some `action` that will cause `sm.MoveNext()` to be invoked once; or, instead, the builder may call `sm.MoveNext()` once itself.
+  * If this awaiter implements `INotifyCompletion` and the `IsCompleted` property is false, then it calls the builder's `void AwaitOnCompleted<TA,TSM>(ref TA awaiter, ref TSM sm) where TA : INotifyCompletion where TSM : IAsyncStateMachine`. It is an error if this instance method doesn't exist or isn't public or has the wrong constraints. Again the builder is expected to call `awaiter.OnCompleted(action)` similarly, or call `sm.MoveNext()` itself.
 
 There's one final requirement:
 * The Visual Studio IDE might invoke the method `builder.GetCompletionActions()`, where the return type must either implement `System.Threading.Tasks.Task` or be `Action[]`. It is an error if this instance method doesn't exist or doesn't have the right return type.
   * The IDE calls this in order to display an "async callstack".
   * The idea is that if someone had retrieved the property `var tasklike = builder.Task`, and then called `tasklike.OnCompleted(action)` or `tasklike.UnsafeOnCompleted(action)`, then the IDE needs to be able to get a list of all those `action`s which are still pending.
-  * It's common for tasklike types to use a `System.Threading.Tasks.Task` under the hood. We don't have any way to extract the list of actions out of one, but the IDE does, and if you return an object of type `Task` then the IDE will use its techniques.
-  * If you return `null` from this method, then the IDE will never be able to display async callstacks beyond the point of an async tasklike-returning method. This will make users disappointed.
+  * It's common for tasklike types to use a `System.Threading.Tasks.Task` under the hood. We don't have any way to extract the list of actions out of one, but the IDE does, and if you return an object of type `Task` then the IDE will use its techniques to extract those actions and display the callstack.
+  * If you return `null` from this method, then the IDE will never be able to display async callstacks beyond the point of an async tasklike-returning method. This will make users unhappy.
 
 
 
@@ -120,24 +130,30 @@ public static class Extensions
 	public static void GetBuilder(this MyTasklike dummy) => new BuilderType();
 }
 ```
-Option2 is bad for the typical usecase: you shouldn't have to type out the attribute every single time you want to return `ValueTask`. I also don't think Option2 would work well for lambdas where you don't have the option to put an attribute.
+Option2 has the slight benefit of being able to specify a builder even when you're returning the existing `Task`. But it's worse for the typical `ValueTask` usecase because it requires you to type out the attribute every single time you want to return `ValueTask`. It also doesn't work with lambdas, which don't have a place to hang that attribute.
 
-Option3 is ugly. I don't think there's much benefit to allowing non-owners of types to do the work of making builders -- a builder is very closely tied to the type -- so the ugliness isn't merited.
+Option3 is ugly. We could live with that ugliness if it was useful to extend third-party tasklike types, but experience is that the implementation of the builder and the tasklike are closely related, so closely that it's not feasible to build someone else's tasklike. So the ugliness isn't merited.
 
 
 ## Discuss: genericity of tasklike and builder
 
-**Question.** Why does the builder have to have exactly the same arity as its tasklike? Or: When the compiler does generic type inference with the argument `async()=>{return 3;}` being passed to a method `void f(Func<MyTask<T>> lambda)`, how does it go from `3` to `int` to `T = int` ?
+**Question.** Why do you need a non-generic `MyBuilder` to build a non-generic `MyTask`? And why do you need an arity-1 `MyBuilder<T>` to build an arity-1 `MyTask<T>`? Why can't we be more flexible about arities?
+
+Why can't we write `[Tasklike(typeof(MyBuilder<object>))] MyTask` and use `MyBuilder<object>` as the builder-type for building a non-generic tasklike `MyTask`?
+
+*These two things might be possible for top-level methods, but they don't work with lambdas and type inference. Let's spell out the related question about type inference:*
+
+When the compiler does generic type inference with the argument `async()=>{return 3;}` being passed to a method `void f(Func<MyTask<T>> lambda)`, how does it go from `3` to `int` to `T = int` ?
 
 
-Let's start with the traditional behavior for `Task`:
+**Current behavior:** Let's start with the traditional behavior for `Task`:
 ```csharp
 void f(Func<Task<T>> lambda);
 var xf = f(async () => {return 3;});
 // Infers T = int
 ```
 
-Under the proposal, it will work like this:
+**Proposal:** Under the proposal, it will work like this:
 ```csharp
 void g(Func<MyTasklike<T>> lambda);
 var xg = g(async () => {return 3;});
@@ -148,7 +164,7 @@ var xg = g(async () => {return 3;});
 * and we happily called the `builder.SetResult(3)` method
 
 
-But can we make it more general? Like this?
+**More general attempt 1:** But can we make it more general? Like this?
 ```csharp
 void h(Func<MyPerverse<T>> lambda);
 var xh = g(async () => {return 3;});
@@ -158,14 +174,14 @@ var xh = g(async () => {return 3;});
 //   public MyPerverse<IEnumerable<U>> Task { get; }
 // }
 ```
-* Is there any way we can go from the inferred result type of the lambda `int`
+* Start from the inferred result type of the lambda `int`
 * to see that the builder has a SetResult method that takes `U`,
 * and therefore `U = int`,
 * and therefore the builder was a `MyPerverseBuilder<int>`
-* and therefore, by looking at its `Task` property, we get `T = IEnumerable<int>` ?
+* and therefore, by looking at its `Task` property, we get `T = IEnumerable<int>`
 
 
-And how about this generalization?
+**More general attempt 2:** And how about this generalization?
 ```csharp
 void k(Func<MyWeird<T>> lambda);
 var xk = k(async () => {return 3;});
@@ -175,14 +191,13 @@ var xk = k(async () => {return 3;});
 //   public MyWeird<string> Task { get; }
 // }
 ```
-* Is there any way we can go from the inferred result type of the lambda `int`
+* Start from the inferred result type of the lambda `int`
 * to see that the builder has a SetResult method that takes `U`
 * and therefore `U = int`
 * but that doesn't inform us about the builder; instead the builder is just `MyWeirdBuilder`
 * and therefore, by looking at its `Task` property, we get `T = string` ?
-```
 
-The two general things aren't possible: there's no way to even know which `SetResult` candidate methods to look at unless we've fixed the builder to one particular type.
+**Impossible:** The two general attempts aren't possible: they both fall down in the second step, when they attempt to look for `SetResult` methods on the builder type, in order to infer the builder's type. This is circular!
 
 
 
