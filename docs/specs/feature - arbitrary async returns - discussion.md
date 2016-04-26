@@ -226,57 +226,15 @@ The next approach takes the second principle, and turns it into something simple
 
 ### Overload resolution approach 2
 
-**Approach2:** The whole point is that we want tasklikes to go down the "tie-breaker" path. So let's achieve that directly: *when judging whether `{P1...Pn}` and `{Q1...Qn}` are identical, do so **up to tasklikes**. * This way we don't need to mess with pseudo-types.
+**Approach2:** The whole point is that we want tasklikes to go down the "tie-breaker" path. So let's achieve that directly: if no candidate is better, then *when judging whether `{P1...Pn}` and `{Q1...Qn}` are identical, do so **up to tasklikes**. * This way we don't need to mess with pseudo-types.
 
 This is the approach put forwards in the the feature proposal.
 
-I'd initially put it forwards only as a joke. It seems shocking! My first instinct is that we should only allow tasklike equivalence where it relates directly to an async lambda (as in approach 1), not everywhere. So let's explore the ramifications in depth.
+I'd initially put it forwards only as a joke. It seems shocking! My first instinct is that we should only allow tasklike equivalence where it relates directly to an async lambda (as in approach 1), not everywhere.
 
-This equivalence-up-to-tasklike is of course performed only after [applicability](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#applicable-function-member). In some cases when comparing two applicable candidates, this approach will cheat us of the *better function member* comparison, and shift us down the *tie-breaker* comparison. So the key question to ask is: **Are there any situations where *better function member* would have given us better results than the *tie-breaker* for choosing between two applicable candidates?**
+But the thing is, this change in rule only applies if none of the applicable candidates was a better function member. It only ever turns ambiugity-errors into success. So the way to judge the merits of this approach are whether it allows any winners in cases where we think it should really be an ambiguity failure.
 
-*Better function member* is built up from an implicit conversion from `Pi` to `Qi` and builds it up to say the the first candidate is better than the second in these four cases:
-```
-// [1]        // [2]              // [3]              // [4], a combination of [2+3]
-f(Pi x);      f(Func<Pi> x);      f(Task<Pi> x);      f(Func<Task<Pi>> x);
-f(Qi x);      f(Func<Qi> x);      f(Task<Qi> x);      f(Func<Task<Qi>> x);
-```
-Under what circumstances would two applicable candidates, which differ only in tasklikes, have such an implicit conversion? The fact that delegate return types are at best covariant and `Task` is invariant means there aren't many possibilities...
-* There might be a user-defined conversion from one tasklike to another, although this only applies at the top level [1]
-* There might be a subtype relation from one tasklike to another, and this only applies at top level [1] or nested inside covariant delegate return types [2].
-* There might be an async lambda argument.
-
-**User-defined tasklike conversions.** I bet that user-defined conversions will be common. `ValueTask` in corefx already has an implicit conversion *from* `Task`. I bet folks will likely add implicit conversions *to* `Task`, e.g. so they can do `Task.WhenAll(mytasklike1, mytasklike2)`.
-```csharp
-[Tasklike(...)] struct ValueTask<T> {
-	public static implicit operator ValueTask<T>(Task<T> task) => ...
-}
-
-[Tasklike(...)] struct MyTask<T> {
-	public static implicit operator MyTask<T>(Task<T> task) => ...
-	public static implicit operator Task<T>(MyTask<T> mytask) => ...
-}
-```
-
-Let's explore the scenarios in which *better function member* might give a better overload resolution for user-defined conversions than *tie-breaker*:
-
-```csharp
-// CASE1: ??
-void f(Task<int> x)
-void f(MyTask<int> x)
-Task<int> x; f(x); // Task<int>
-
-// CASE2: irrelevant, since the second candidate is inapplicable (fails type inference)
-void f<T>(Task<T> x)
-void f<T>(MyTask<T> x)
-Task<int> x; f(x); // Task<int>
-
-// CASE3: ??
-void f<T>(Task<T> x)
-void f(MyTask<int> x)
-Task<int> x; f(x); // Task<int>
-```
-
-TODO
+Honestly? There aren't any, not that I can think of.
 
 
 ## Discuss: IObservable
@@ -312,7 +270,7 @@ async IObservable<string> Option2()
 }
 ```
 
-I don't know which of these options feels best.
+I don't know which of these options feels best. Probably Option2, since Option1 is akin (in the words of Reed Copsey) to an iterator method with only a single yield. Pretty unusual.
 
 I also don't know how cancellation should work. The scenario I imagine is that an `async IObservable` method has issued a web request, but then the subscriber disposes of its subscription. Presumably you'd want to cancel the web request immediately? Is disposal the primary (sole?) way for `IObservable` folks to cancel their aysnc sequences? Or do they prefer to have a separate stream which receives cancellation requests?
 
