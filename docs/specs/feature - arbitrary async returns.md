@@ -312,8 +312,21 @@ f( ()=>3, (x)=>x.ToString());
 ```
 This will happily infer `T = int` and simply not bother checking whether this candidate for `T` makes sense for the second argument. In general, C# type inference doesn't guarantee that successful type inference will produce parameter types that are applicable to arguments.
 
-[TODO: write more here]
+The opposite possible principle behind type inference is that it should aggressively *prefer* to give type inference results that include the pseudo-types rather than any particular concrete tasklikes. The rationale here is that the whole point of the pseudo-types is to encourage candidates to be treated equivalent up to tasklikeness that arises from async lambdas. But this principle doesn't feel very principled.
 
+Next we'd have to decide how the chosen principle informs how the pseudo-types work with [Fixing](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#fixing). For instance, if a generic type parameter has lower bounds `InferredTask<int>` and `Task<int>` then what should it fix as? What if it has lower bounds `IEnumerable<InferredTask<int>>` and `IEnumerable<Task<int>>` and `IEnumerable<MyTask<int>>`?
+
+We'd also have to decide how the pseudo-types work with [lower bound inference](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#lower-bound-inferences) and upper bound inference and exact bound inference. For instance, if doing a lower bound inference from `InferredTask<int>` to `Task<T>`, we can certainly dig in to do a lower bound inference from `int` to `T`, but should we also do an exact inference from `Task` to this `InferredTask`? How about lower bound inference from `Task<int>` to `InferredTask<T>`? How about an upper bound inference?
+
+We'd also have to decide how the pseudo-types work with [applicable function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#applicable-function-member). Presumably any async lambda has an implicit conversion to a delegate type with return type `InferredTask<T>`. But what about all the other implicit conversions?
+
+In the end, there are too many difficult questions to address here, and we can't give good answers because we don't have good principles to start from.
+
+### Overload resolution approach 2
+
+What I've proposed in this feature proposal is that, when judging 
+
+[TODO]
 
 
 ## Discuss: overload resolution
