@@ -1,4 +1,4 @@
-# C# feature discussion: arbitrary async returns
+# C# designe rationale and alternatives: arbitrary async returns
 
 *This document explores the design space for the feature proposal [arbitrary async returns](feature - arbitrary async returns.md).
 
