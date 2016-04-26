@@ -2,16 +2,13 @@
 
 In C#6, methods must return either `void` or `Task` or `Task<T>`. This proposed feature allows them to return any *tasklike* type.
 
-----------------------------------
+> * **Download:** [ArbitraryAsyncReturns.zip](https://github.com/ljw1004/roslyn/raw/features/async-return/ArbitraryAsyncReturns.zip) [22mb]
+> * **Install:** Unzip the file. Quit VS. Double-click to install in this order: (1) Roslyn.VisualStudio.Setup.vsix, (2) Roslyn.Compilers.Extension.vsix, (3) ExpressionEvaluatorPackage.vsix. I don't think the others are needed.
+> * **Test:** the zip file contains a sample project
+> * **Uninstall:** I've usually been able to go to within Visual Studio to Tools>Extensions, search for Roslyn, and uninstall in the order (1) Expression Evaluators, (2) Compilers, (3) Language Service. Once that resulted in a broken VS that was unable to load C# projects, and I unbroke it by deleting the entire folder `%userprofile%\AppData\Roaming\Microsoft\VisualStudio` and `%userprofile%\AppData\Local\Microsoft\VisualStudio`. Doing so reset all my VS settings to default.
+> * **Watch:** I coded this prototype live in livecoding.tv, and you can watch recordings if you want: [livecoding.tv/ljw1004](https://www.livecoding.tv/ljw1004/)
+> * **Discuss:** please go to the [discussion thread](...)
 
-* **Download:** [ArbitraryAsyncReturns.zip](https://github.com/ljw1004/roslyn/raw/features/async-return/ArbitraryAsyncReturns.zip) [22mb]
-* **Install:** Unzip the file. Quit VS. Double-click to install in this order: (1) Roslyn.VisualStudio.Setup.vsix, (2) Roslyn.Compilers.Extension.vsix, (3) ExpressionEvaluatorPackage.vsix. I don't think the others are needed.
-* **Test:** the zip file contains a sample project
-* **Uninstall:** I've usually been able to go to within Visual Studio to Tools>Extensions, search for Roslyn, and uninstall in the order (1) Expression Evaluators, (2) Compilers, (3) Language Service. Once that resulted in a broken VS that was unable to load C# projects, and I unbroke it by deleting the entire folder `%userprofile%\AppData\Roaming\Microsoft\VisualStudio` and `%userprofile%\AppData\Local\Microsoft\VisualStudio`. Doing so reset all my VS settings to default.
-* **Watch:** I coded this prototype live in livecoding.tv, and you can watch recordings if you want: [livecoding.tv/ljw1004](https://www.livecoding.tv/ljw1004/)
-* **Discuss:** please go to the [discussion thread](...)
-
-----------------------------------
 
 The primary benefit is to allow a `ValueTask<T>` that reduces the "async overhead cost" on the hot path:
 ![perf](feature - arbitrary async returns.png)
@@ -92,17 +89,21 @@ Define the *builder type* of a tasklike as follows:
   * It is an error if the builder type has 0 or more than 1 generic type arguments, or isn't public.
 
 When an async tasklike-returning method is invoked,
-* It calls `var builder = BuilderType.Create()` to create a new instance of the builder type. It is an error if this static method doesn't exist or isn't public or doesn't return `BuilderType`.
-* It then calls the `void Start<TSM>(ref TSM sm) where TSM : IAsyncStateMachine` method on `builder`. It is an error if this instance method doesn't exist or isn't public or has a different signature or constraints. The `sm` variable is a mostly opaque type which represents the current state of execution of the body of the async method. Upon being given this `sm` variable, the builder must invoke `sm.MoveNext()` on it exactly once, either now in the `Start` method or in the future. 
-* It then retrieves the `U Task {get;}` property on `builder`. It is an error if this instance property doesn't exist or isn't public or if its property type `U` isn't identical to the return type of the async tasklike-returning method.
+* It creates `var sm = new CompilerGeneratedStateMachineType()` where this compiler-generated state machine type represents the async tasklike method, and may be a struct or a class, and has a field `BuilderType builder` in it, and implements `IAsyncStateMachine`.
+* It assigns `sm.builder = BuilderType.Create()` to create a new instance of the builder type. It is an error if this static method on the builder type doesn't exist or isn't public or doesn't return `BuilderType`.
+* It then calls the `void Start<TSM>(ref TSM sm) where TSM : IAsyncStateMachine` method on `builder`. It is an error if this instance method doesn't exist or isn't public or has a different signature or constraints. The `sm` variable is that same `sm` as was constructed earlier. Upon being given this `sm` variable, the builder must invoke `sm.MoveNext()` on it exactly once, either now in the `Start` method or in the future. 
+* It then retrieves the `U Task {get;}` property on `sm.builder`. It is an error if this instance property doesn't exist or isn't public or if its property type `U` isn't identical to the return type of the async tasklike-returning method.
 
 Execution of `sm.MoveNext()` might cause other builder methods to be invoked:
-* The first cold await might cause a copy of the builder (if `BuilderType` is a struct) or a copy of a reference to the builder (if `BuilderType` is a class) to be placed on the heap. In this case the builder's `void SetStateMachine(IAsyncStateMachine sm)` method is invoked. It is an error if this instance method doesn't exist or isn't public. (**TODO:** I'm not sure when and why it calls this! after all, the builder is given a state-machine in both Start and AwaitOnCompleted. So why keep it?)
-* If the async method completes succesfully, it invokes the builder's `void SetResult()` method (in case of a non-generic tasklike), or the builder's `void SetResult(T result)` method with the operand of the return statement (in case of a generic tasklike). It is an error if this instance method doesn't exist or isn't public.
-* If the async method fails with an exception, it invokes the builder's `void SetException(System.Exception ex)` method. It is an error if this instance method doesn't exist or isn't public.
+* If the async method completes succesfully, it invokes the method `void SetResult()` on `sm.builder` (in case of a non-generic tasklike), or the `void SetResult(T result)` method with the operand of the return statement (in case of a generic tasklike). It is an error if this instance method doesn't exist or isn't public.
+* If the async method fails with an exception, it invokes the method `void SetException(System.Exception ex)` on `sm.builder`. It is an error if this instance method doesn't exist or isn't public.
 * If the async method executes an `await e` operation, it invokes `var awaiter = e.GetAwaiter()`.
-  * If this awaiter implements `ICriticalNotifyCompletion` and the `IsCompleted` property is false, then it calls the builder's `void AwaitUnsafeOnCompleted<TA,TSM>(ref TA awaiter, ref TSM sm) where TA : ICriticalNotifyCompletion where TSM : IAsyncStateMachine`. It is an error if this instance method doesn't exist or isn't public or has the wrong constraints. The builder is expected to call `awaiter.UnsafeOnCompleted(action)` with some `action` that will cause `sm.MoveNext()` to be invoked once; or, instead, the builder may call `sm.MoveNext()` once itself.
-  * If this awaiter implements `INotifyCompletion` and the `IsCompleted` property is false, then it calls the builder's `void AwaitOnCompleted<TA,TSM>(ref TA awaiter, ref TSM sm) where TA : INotifyCompletion where TSM : IAsyncStateMachine`. It is an error if this instance method doesn't exist or isn't public or has the wrong constraints. Again the builder is expected to call `awaiter.OnCompleted(action)` similarly, or call `sm.MoveNext()` itself.
+  * If this awaiter implements `ICriticalNotifyCompletion` and the `IsCompleted` property is false, then it calls the method `void AwaitUnsafeOnCompleted<TA,TSM>(ref TA awaiter, ref TSM sm) where TA : ICriticalNotifyCompletion where TSM : IAsyncStateMachine` on `sm.builder`. It is an error if this instance method doesn't exist or isn't public or has the wrong constraints. The builder is expected to call `awaiter.UnsafeOnCompleted(action)` with some `action` that will cause `sm.MoveNext()` to be invoked once; or, instead, the builder may call `sm.MoveNext()` once itself.
+  * If this awaiter implements `INotifyCompletion` and the `IsCompleted` property is false, then it calls the method `void AwaitOnCompleted<TA,TSM>(ref TA awaiter, ref TSM sm) where TA : INotifyCompletion where TSM : IAsyncStateMachine` on `sm.builder`. It is an error if this instance method doesn't exist or isn't public or has the wrong constraints. Again the builder is expected to call `awaiter.OnCompleted(action)` similarly, or call `sm.MoveNext()` itself.
+
+In the case where the builder type is a struct, and `sm` is also a struct, it's important to consider what happens should the builder decide to *box* the struct, e.g. by doing `IAsyncStateMachine boxed_sm = sm`. This will always create a new copy of `sm`, which will in turn contain a new copy of `sm.builder`.
+* The builder is at liberty anytime to call `boxed_sm.SetStateMachine(boxed_sm)`. This will invoke the `void SetStateMachine(IAsyncStateMachine boxed_sm)` method on `boxed_sm.builder`. It is an error if this instance method doesn't exist or isn't public.
+* This mechanism is typically used by struct builder types so they can box only once the `sm` parameter they receive in their `Start` or `AwaitOnCompleted` or `AwaitUnsafeOnCompleted` methods; on subsequent calls, they ignore that parameter and used the version they have already boxed. 
 
 There's one final requirement:
 * The Visual Studio IDE might invoke the method `builder.GetCompletionActions()`, where the return type must either implement `System.Threading.Tasks.Task` or be `Action[]`. It is an error if this instance method doesn't exist or doesn't have the right return type.
@@ -209,15 +210,35 @@ In the "async pattern", cancellation and progress are done with parameters:
 ```csharp
 void f(int param, CancellationToken cancel = default(CancellationToken), IProgress<string> progress = null)
 ```
-But for some tasklikes, cancellation and progress are faculties of the tasklike (equivalently, of its builder)...
+
+But for some tasklikes, cancellation and progress are instead faculties of the tasklike (equivalently, of its builder)...
 ```csharp
-async IAsyncActionWithProgress TestAsync() { }
+// Windows async tasklikes:
+async IAsyncActionWithProgress<string> TestAsync() { ... }
 var a = TestAsync();
+a.Progress += (s) => Console.WriteLine($"progress {s}");
+a.Cancel();
 ```
 
-[TODO: write more here. We can achieve it by custom awaiters that the builder recognizes. Also show an IObservable example with disposal and cancellation. Also finish writing out the IAsyncActionWithProgress example.]
+```csharp
+// IObservable tasklike:
+async IObservable<string> TestAsync() { ... }
+var s = TestAsync().Subscribe(s => Console.WriteLine(s));
+s.Dispose(); // maybe this should cancel the work
+```
 
-This scheme wouldn't be able to represent the WinRT types `IAsyncOperationWithProgress` or `IAsyncActionWithProgress`. It also wouldn't be able to represent the fact that WinRT async interfaces have a cancel method upon them. We might consider allowing the async method to access its own builder instance via some special keyword, e.g. `_thisasync.cancel.ThrowIfCancellationRequested()`, but that seems too hacky and I think it's not worth it.
+It's possible, in the proposal as outlined, for the async method body to communicate with its builder. Its only means of doing this is by awaiting a custom awaiter; its builder's `AwaitOnCompleted` method is responsible for recognizing that custom awaiter and doing the right thing:
+```csharp
+async IAsyncActionWithProgress<string> TestAsync()
+{
+   var (cancel, progress) = await new MyCustomAwaiter();
+   ...
+}
+```
+
+It would be possible to augment the language further, so that within the body of an async method it can use a reserved keyword `this.__builder` to refer in a strongly-typed way its current builder. But that doesn't seem worth it.
+
+It might be interesting if the coder could, in their own code, construct+manipulate a builder method and use it to call an async method. But that just seems too weird.
 
 
 
@@ -274,9 +295,25 @@ If we do indeed change type inference to dig through Tasklikes, but we don't cha
 
 In general there won't be implicit conversions between arbitrary tasklikes and `Task`, and we shouldn't expect there to be. But that's beside the point. The only way we'll get a good overload resolution disambiguation between the candidates is if we go down the *tie-breaker* path to pick the more specific candidate. Once we've started down the *better function member* route, it's already too late.
 
-**Problem statement:** Somehow, Example5 should pick the first candidate on grounds that it's more specific.
+**Problem statement: Somehow, Example5 should pick the first candidate on grounds that it's more specific.**
 
-... [TODO]
+### Overload resolution approach 1
+
+**Approach1:** We could use two new pseudo-types `InferredTask` and `InferredTask<T>` as follows:
+1. We modify type inference so that, whenever it's asked to infer the *return* type of an async lambda, it always gives the answer `InferredTask<T>` where `T` is the inferred *result* type, or just the non-generic `InferredTask`.
+2. These new pseudo-types are merely placeholders for the fact that type inferences wanted to infer a tasklike but didn't know which one.
+3. When overload resolution attempts to judge whether two parameter sequences `{P1...Pn}` and `{Q1...Qn}` are identical, it treats these pseudo-types as identical to themselves and all tasklikes. This would allow it to go down the *more specific* tie-breaker route.
+4. If overload resolution picks a winning candidate with one of the pseudo-types, only then does it get collapsed down to the concrete type `Task` or `Task<T>`. 
+
+I struggled to make sense of this approach. Consider what is the *principle* behind type inference? Maybe we say that when type inference gives a result that mentions one of the pseudo-types, it is a statement that *all tasklikes would be equally applicable in its place`. But that's not really how type inference currently works. Consider
+```csharp
+void f<T>(Func<T> lambda1, Func<T,T> lambda2)
+f( ()=>3, (x)=>x.ToString());
+```
+This will happily infer `T = int` and simply not bother checking whether this candidate for `T` makes sense for the second argument. In general, C# type inference doesn't guarantee that successful type inference will produce parameter types that are applicable to arguments.
+
+[TODO: write more here]
+
 
 
 ## Discuss: overload resolution
