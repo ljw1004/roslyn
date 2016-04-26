@@ -1,6 +1,6 @@
-# C# feature proposal: arbitrary async returns
+# C# feature discussion: arbitrary async returns
 
-*This document explores the design space for arbitrary async returns.*
+*This document explores the design space for the feature proposal [arbitrary async returns](feature - arbitrary async returns.md).
 
 
 ## Discuss: connection between tasklike and builder
@@ -22,6 +22,8 @@ public static class Extensions
 Option2 has the slight benefit of being able to specify a builder even when you're returning the existing `Task`. But it's worse for the typical `ValueTask` usecase because it requires you to type out the attribute every single time you want to return `ValueTask`. It also doesn't work with lambdas, which don't have a place to hang that attribute.
 
 Option3 is ugly. We could live with that ugliness if it was useful to extend third-party tasklike types, but experience is that the implementation of the builder and the tasklike are closely related, so closely that it's not feasible to build someone else's tasklike. So the ugliness isn't merited.
+
+Option3 has the slight advantage of not requiring `TasklikeAttribute` to be defined somewhere.
 
 
 ## Discuss: genericity of tasklike and builder
@@ -51,6 +53,7 @@ var xg = g(async () => {return 3;});
 * Under the proposal, we required a generic builder `MyBuilder<T>`
 * and we first inferred the *result type* `int` from the lambda. (Result type is the type of the return operand)
 * and figured out that `T = int`
+* and we pick the concrete type `var builder = MyBuilder<int>.Create()`
 * and we happily called the `builder.SetResult(3)` method
 
 
@@ -65,7 +68,7 @@ var xh = g(async () => {return 3;});
 // }
 ```
 * Start from the inferred result type of the lambda `int`
-* to see that the builder has a SetResult method that takes `U`,
+* to see that *the builder* has a SetResult method that takes `U`,
 * and therefore `U = int`,
 * and therefore the builder was a `MyPerverseBuilder<int>`
 * and therefore, by looking at its `Task` property, we get `T = IEnumerable<int>`
@@ -82,7 +85,7 @@ var xk = k(async () => {return 3;});
 // }
 ```
 * Start from the inferred result type of the lambda `int`
-* to see that the builder has a SetResult method that takes `U`
+* to see that *the builder* has a SetResult method that takes `U`
 * and therefore `U = int`
 * but that doesn't inform us about the builder; instead the builder is just `MyWeirdBuilder`
 * and therefore, by looking at its `Task` property, we get `T = string` ?
@@ -95,7 +98,7 @@ var xk = k(async () => {return 3;});
 
 In the "async pattern", cancellation and progress are done with parameters:
 ```csharp
-void f(int param, CancellationToken cancel = default(CancellationToken), IProgress<string> progress = null)
+void f(int param, CancellationToken cancel, IProgress<string> progress)
 ```
 
 But for some tasklikes, cancellation and progress are instead faculties of the tasklike (equivalently, of its builder)...
@@ -104,6 +107,7 @@ But for some tasklikes, cancellation and progress are instead faculties of the t
 async IAsyncActionWithProgress<string> TestAsync() { ... }
 var a = TestAsync();
 a.Progress += (s) => Console.WriteLine($"progress {s}");
+a.Start();
 a.Cancel();
 ```
 
@@ -114,7 +118,7 @@ var s = TestAsync().Subscribe(s => Console.WriteLine(s));
 s.Dispose(); // maybe this should cancel the work
 ```
 
-It's possible, in the proposal as outlined, for the async method body to communicate with its builder. The way is a bit hacky: the async method has to await a custom awaiter, and thebuilder's `AwaitOnCompleted` method is responsible for recognizing that custom awaiter and doing the right thing:
+It's possible, in the proposal as outlined, for the async method body to communicate with its builder. The way is a bit hacky: the async method has to await a custom awaiter, and the builder's `AwaitOnCompleted` method is responsible for recognizing that custom awaiter and doing the right thing:
 ```csharp
 async IAsyncActionWithProgress<string> TestAsync()
 {
@@ -125,13 +129,13 @@ async IAsyncActionWithProgress<string> TestAsync()
 
 It would be possible to augment the language further, so that within the body of an async method it can use a reserved keyword `this.__builder` to refer in a strongly-typed way its current builder. But that doesn't seem worth it.
 
-I also wonder about having the *caller* could construct and manipulate the builder in code before the async method started, to give it some context. But I don't see any good way to write this.
+I also wonder whether the *caller* could construct and manipulate the builder in code before the async method started, to give it some context. But I don't see any good way to write this.
 
 
 
 ## Discuss: overload resolution with async lambdas
 
-There's a thorny issue around overload resolution. The proposal has stated has one solution for it. I want to outline the problem and discuss alternatives.
+There's a thorny issue around overload resolution. The proposal has one solution for it. I want to outline the problem and discuss alternatives. We have to build up to the problem with some examples...
 
 **Example1:** This is allowed and infers `T = int`. Effectively, type inference can "dig through" `Task<T>`. This is a really common pattern.
 ```csharp
@@ -148,7 +152,7 @@ f(async () => 3); // infers T = Task<int>
 ```
 
 
-**Example3:** When the two examples above are overloaded, the compiler has rules to pick the winner. In particular, if two overload candidates have identical parameter types (after inferred types have been substituted in) then it uses the *more specific candidate* tie-breaker rule ([Better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member)). This tie-breaker ends up being used a lot, particularly for things like `Task.Run`.
+**Example3:** When the two examples above are overloaded, the compiler has rules to pick the winner. In particular, if two overload candidates have identical parameter types (after inferred types have been substituted in) then it uses the *more specific candidate* **tie-breaker rule** ([Better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member)). This *tie-breaker* ends up being used a lot for async lambdas, particularly for things like `Task.Run`.
 ```csharp
 // Example 3
 void f<T>(Func<Task<T>> lambda)   // infers T = int and is applicable
@@ -173,12 +177,12 @@ void f<T>(Func<MyTask<T>> lambda)  // infers T = int and is applicable
 void f<T>(Func<T> lambda)          // infers T = Task<int> and is applicable
 f(async () => 3);   // what should this do?
 ```
-If we do indeed change type inference to dig through Tasklikes, but we don't change the rules for overload resolution, then it will give an **ambiguous overload** error. That's because it looks at the two candidates `f(Func<MyTask<int>>)` and `f(Func<Task<int>>)`...
-* The two don't have identical parameter types, so it won't go through the tie-breaker rules about *more specific*
-* Instead it looks at the rules for *better function member*
+If we do indeed change type inference to dig through Tasklikes, but we don't change the rules for overload resolution, then it will give an **ambiguous overload** error. That's because it looks at the two candidates `f(Func<MyTask<int>> lambda)` and `f(Func<Task<int>> lambda)`...
+* The two don't have identical parameter types, so it won't go through the *tie-breaker* rules about more specific
+* Instead it looks at the rules for **better function member**
 * This requires to judge whether the conversion from expression `async()=>3` to type `Func<MyTask<int>>` or to type `Func<Task<int>>` is a [better conversion from expression](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-from-expression)
 * This requires to judge whether the type `Func<MyTask<int>>` or `Func<Task<int>>` is a [better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target)
-* This requires to judge whether there is an implicit conversion from `MyTask<int>` to `Task<int>` or vice versa.* 
+* This requires to judge whether there is an implicit conversion from `MyTask<int>` to `Task<int>` or vice versa.
 
 In general there won't be implicit conversions between arbitrary tasklikes and `Task`, and we shouldn't expect there to be. But that's beside the point. The only way we'll get a good overload resolution disambiguation between the candidates is if we go down the *tie-breaker* path to pick the more specific candidate. Once we've started down the *better function member* route, it's already too late.
 
@@ -195,19 +199,20 @@ I think that folks should be able to come up with their own parallel world of `M
 ### Overload resolution approach 1
 
 **Approach1:** We could use two new pseudo-types `InferredTask` and `InferredTask<T>` as follows:
+
 1. We modify type inference so that, whenever it's asked to infer the *return* type of an async lambda, then in the non-generic case it always gives `InferredTask` and in the generic case it always gives `InferredTask<T>` where `T` is the inferred *result* type of the lambda.
 2. These new pseudo-types are merely placeholders for the fact that type inferences wanted to infer a tasklike but is flexible as to which one.
 3. When overload resolution attempts to judge whether two parameter sequences `{P1...Pn}` and `{Q1...Qn}` are identical, it treats these pseudo-types as identical to themselves and all tasklikes of the same arity. This would allow it to go down the *more specific* tie-breaker route.
-4. If overload resolution picks a winning candidate with one of the pseudo-types, only then does it get collapsed down to the concrete type `Task` or `Task<T>`. 
+4. If overload resolution picks a winning candidate with one of the pseudo-types, only then does the pseudo-type get collapsed down to the concrete type `Task` or `Task<T>`. 
 
-I struggled to make sense of this approach. Consider what is the *principle* behind type inference? One possible principle is this: *when type inference gives a result that mentions one of the pseudo-types, it is a statement that **all tasklikes would be equally applicable in its place**.* But that's not really how type inference works in C#. Consider:
+I struggled to make sense of this approach. Consider what is the principle behind this type inference? One possible principle is this: *when type inference succeeds and mentions one of the pseudo-types, it is a statement that **all tasklikes would be equally applicable in its place**. * But that's not really how type inference works in C#. Consider:
 ```csharp
 void f<T>(Func<T> lambda1, Func<T,T> lambda2)
 f( ()=>3, (x)=>x.ToString());
 ```
-This will happily infer `T = int` and simply not bother checking whether this candidate for `T` makes sense for the second argument. In general, C# type inference doesn't guarantee that successful type inference will produce parameter types that are applicable to arguments. We don't have a strong enough foundation upon which to build "all tasklikes would be applicable".
+This will happily infer `T = int` and simply not bother checking whether this candidate for `T` makes sense for the second argument. In general, C# type inference doesn't guarantee that successful type inference will produce parameter types that are applicable to arguments. This is a weak foundation upon which to build "all tasklikes would be applicable".
 
-The opposite possible principle behind type inference is that *it should aggressively *prefer* to give type inference results that include the pseudo-types* rather than any particular concrete tasklikes. The rationale here is that the whole point of the pseudo-types is to encourage candidates to be treated equivalent up to tasklikeness that arises from async lambdas. But this principle doesn't feel very principled...
+The opposite possible principle behind type inference is that *it should aggressively prefer to give type inference results that include the pseudo-types* rather than any particular concrete tasklikes. The rationale here is that the whole point of the pseudo-types is to encourage candidates to be treated equivalent up to tasklikeness that arises from async lambdas. But this principle doesn't feel very principled... (see Approach 2 below).
 
 Next we'd have to decide how the chosen principle informs how the pseudo-types work with [Fixing](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#fixing). For instance, if a generic type parameter has lower bounds `InferredTask<int>` and `Task<int>` then what should it fix as? What if it has lower bounds `IEnumerable<InferredTask<int>>` and `IEnumerable<Task<int>>` and `IEnumerable<MyTask<int>>`?
 
@@ -221,15 +226,15 @@ The next approach takes the second principle, and turns it into something simple
 
 ### Overload resolution approach 2
 
-**Approach2:** The whole point is that we want tasklikes to go down the "tie-breaker" path. So let's achieve that directly: *when judging whether `{P1...Pn}` and `{Q1...Qn}` are identical, do so **up to tasklikes**.* This way we don't need to mess with pseudo-types.
+**Approach2:** The whole point is that we want tasklikes to go down the "tie-breaker" path. So let's achieve that directly: *when judging whether `{P1...Pn}` and `{Q1...Qn}` are identical, do so **up to tasklikes**. * This way we don't need to mess with pseudo-types.
 
 This is the approach adopted by the feature proposal.
 
 I'd initially put it forwards only as a joke. It seems shocking! My first instinct is that we should only allow tasklike equivalence where it relates directly to an async lambda (as in approach 1), not everywhere. So let's explore the ramifications...
 
-This equivalence-up-to-tasklike is of course performed only after [applicability](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#applicable-function-member). In some cases when comparing two applicable candidates, this approach will cheat us of the *better function member* comparison, and shift us down the *tie-breaker* comparison. So the key question to ask is: **Are there any situations where *better function member* would have given us *better results* than the *tie-breaker* for choosing between two applicable candidates?**
+This equivalence-up-to-tasklike is of course performed only after [applicability](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#applicable-function-member). In some cases when comparing two applicable candidates, this approach will cheat us of the *better function member* comparison, and shift us down the *tie-breaker* comparison. So the key question to ask is: **Are there any situations where *better function member* would have given us better results than the *tie-breaker* for choosing between two applicable candidates?**
 
-*Better function member* means that we're comparing a pair of candidates like these and there's an implicit conversion from `Pi` to `Qi`. (The full definition is of course a bit more precise).
+*Better function member* means is built up from an implicit conversion from `Pi` to `Qi` and builds it up to say the the top candidate is better than the bottom is these four cases:
 ```
 // [1]        // [2]              // [3]              // [4]
 f(Pi x);      f(Func<Pi> x);      f(Task<Pi> x);      f(Func<Task<Pi>> x);
@@ -263,27 +268,46 @@ Task<int> t = ...; f(t);
 void f<T>(MyTask<T> t, long l)
 void f<T>(Task<T> t, long l)
 Task<int> t = ...; int i=1; f(t,i);
-
-
 ```
 
+TODO
 
-
-
-
-
-
-
-
-[TODO]
-
-
-## Discuss: overload resolution
 
 ## Discuss: IObservable
 
-----------------------
-TODO:
+It would be great if this feature -- along with async iterators -- could offer native support for producing `IObservable`.
 
+> The question of *consuming* `IObservable` is different. To write imperative (pull-based) code that consumes `IObservable` (push-based) you need a buffer of some sort. That's orthogonal and I don't want to get derailed.
 
+I don't know what kind of semantics you'd expect from an `IObservable`-returning async method. Here are two options:
 
+```csharp
+async IObservable<string> Option1()
+{
+    // This behaves a lot like Task<string>.ToObservable() – the async method starts the moment
+    // you execute Option1, and if you subscribe while it's in-flight then you'll get an OnNext+OnCompleted
+    // as soon as the return statement executes, and if you subscribe later then you'll get OnNext+OnCompleted
+    // immediately the moment you subscribe (with a saved value).
+    // Presumably there's no way for Subscription.Dispose() to abort the async method...
+    await Task.Delay(100);
+    return "hello";
+}
+
+async IObservable<string> Option2()
+{
+    // This behaves a lot like Observable.Create() – a fresh instance of the async method starts
+    // up for each subscriber at the moment of subscription, and you'll get an OnNext the moment
+    // each yield executes, and an OnCompleted when the method ends.
+    await Task.Delay(100);
+    yield return "hello";
+    await Task.Delay(200);
+    yield return "world";
+    await Task.Delay(300);
+}
+```
+
+I don't know which of these options feels best.
+
+I also don't know how cancellation should work. The scenario I imagine is that an `async IObservable` method has issued a web request, but then the subscriber disposes of its subscription. Presumably you'd want to cancel the web request immediately? Is disposal the primary (sole?) way for `IObservable` folks to cancel their aysnc sequences? Or do they prefer to have a separate stream which receives cancellation requests?
+
+We need guidance from `IObservable` subject matter experts.
