@@ -127,7 +127,7 @@ async IAsyncActionWithProgress<string> TestAsync()
 }
 ```
 
-It would be possible to augment the language further, so that within the body of an async method it can use a reserved keyword `this.__builder` to refer in a strongly-typed way its current builder. But that doesn't seem worth it.
+It would be possible to augment the language further, so that within the body of an async method it can use a contextual keyword like `async` to refer in a strongly-typed way its current builder, e.g. `var c = async.CancellationToken` or `async.Progress?.Invoke(i)`. That's an interesting idea that I want to explore more fully in the area of `IAsyncEnumerable`.
 
 I also wonder whether the *caller* could construct and manipulate the builder in code before the async method started, to give it some context. But I don't see any good way to write this.
 
