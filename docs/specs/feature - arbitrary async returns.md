@@ -7,7 +7,7 @@ In C#6, methods must return either `void` or `Task` or `Task<T>`. This proposed 
 > * **Test:** the zip file contains a sample project
 > * **Uninstall:** I've usually been able to go to within Visual Studio to Tools>Extensions, search for Roslyn, and uninstall in the order (1) Expression Evaluators, (2) Compilers, (3) Language Service. Once that resulted in a broken VS that was unable to load C# projects, and I unbroke it by deleting the entire folder `%userprofile%\AppData\Roaming\Microsoft\VisualStudio` and `%userprofile%\AppData\Local\Microsoft\VisualStudio`. Doing so reset all my VS settings to default.
 > * **Watch:** I coded this prototype live in livecoding.tv, and you can watch recordings if you want: [livecoding.tv/ljw1004](https://www.livecoding.tv/ljw1004/)
-> * **Discuss:** please go to the [discussion thread](...)
+> * **Discuss:** please read the [Design rationale and alternatives](feature - arbitrary async returns - discussion.md), and then go to the [discussion thread](...)
 
 
 The primary benefit is to allow a `ValueTask<T>` that reduces the "async overhead cost" on the hot path:
@@ -75,6 +75,8 @@ The [inferred return type](https://github.com/ljw1004/csharpspec/blob/gh-pages/e
   * if the return type of the delegate is `U<V2>` where `U` is a generic tasklike, then the inferred *return type* is `U<V1>`
   * otherwise the inferred *return type* is `Task<V2>`
 
+> For explanation of why the proposal is this way, and to see alternatives, please read the [Design rationale and alternatives](feature - arbitrary async returns - discussion.md).
+
 
 **Semantics for execution of an async method**
 
@@ -114,230 +116,6 @@ There's one final requirement:
 
 
 
-# Discussion
-
-
-## Discuss: connection between tasklike and builder
-
-**Question.** How does the compiler know which builder type to use for a given tasklike?
-```csharp
-// Option1: via attribute on the tasklike type itself
-[Tasklike(typeof(BuilderType))] class MyTasklike { ... }
-
-// Option2: via an attribute on the async method
-[Tasklike(typeof(BuilderType))] async Task TestAsync() { ... }
-
-// Option3: via a dummy call to "var builder = default(Tasklike).GetBuilder();"
-public static class Extensions
-{
-	public static void GetBuilder(this MyTasklike dummy) => new BuilderType();
-}
-```
-Option2 has the slight benefit of being able to specify a builder even when you're returning the existing `Task`. But it's worse for the typical `ValueTask` usecase because it requires you to type out the attribute every single time you want to return `ValueTask`. It also doesn't work with lambdas, which don't have a place to hang that attribute.
-
-Option3 is ugly. We could live with that ugliness if it was useful to extend third-party tasklike types, but experience is that the implementation of the builder and the tasklike are closely related, so closely that it's not feasible to build someone else's tasklike. So the ugliness isn't merited.
-
-
-## Discuss: genericity of tasklike and builder
-
-**Question.** Why do you need a non-generic `MyBuilder` to build a non-generic `MyTask`? And why do you need an arity-1 `MyBuilder<T>` to build an arity-1 `MyTask<T>`? Why can't we be more flexible about arities?
-
-Why can't we write `[Tasklike(typeof(MyBuilder<object>))] MyTask` and use `MyBuilder<object>` as the builder-type for building a non-generic tasklike `MyTask`?
-
-*These two things might be possible for top-level methods, but they don't work with lambdas and type inference. Let's spell out the related question about type inference:*
-
-When the compiler does generic type inference with the argument `async()=>{return 3;}` being passed to a method `void f(Func<MyTask<T>> lambda)`, how does it go from `3` to `int` to `T = int` ?
-
-
-**Current behavior:** Let's start with the traditional behavior for `Task`:
-```csharp
-void f(Func<Task<T>> lambda);
-var xf = f(async () => {return 3;});
-// Infers T = int
-```
-
-**Proposal:** Under the proposal, it will work like this:
-```csharp
-void g(Func<MyTasklike<T>> lambda);
-var xg = g(async () => {return 3;});
-```
-* Under the proposal, we required a generic builder `MyBuilder<T>`
-* and we first inferred the *result type* `int` from the lambda. (Result type is the type of the return operand)
-* and figured out that `T = int`
-* and we happily called the `builder.SetResult(3)` method
-
-
-**More general attempt 1:** But can we make it more general? Like this?
-```csharp
-void h(Func<MyPerverse<T>> lambda);
-var xh = g(async () => {return 3;});
-// Imagine if we tried to do something more general...
-// class MyPerverseBuilder<U> {
-//   public void SetResult(U value) { }
-//   public MyPerverse<IEnumerable<U>> Task { get; }
-// }
-```
-* Start from the inferred result type of the lambda `int`
-* to see that the builder has a SetResult method that takes `U`,
-* and therefore `U = int`,
-* and therefore the builder was a `MyPerverseBuilder<int>`
-* and therefore, by looking at its `Task` property, we get `T = IEnumerable<int>`
-
-
-**More general attempt 2:** And how about this generalization?
-```csharp
-void k(Func<MyWeird<T>> lambda);
-var xk = k(async () => {return 3;});
-// As before, can we do something more general?
-// class MyWeirdBuilder {
-//   public void SetResult<U>(U value) { }
-//   public MyWeird<string> Task { get; }
-// }
-```
-* Start from the inferred result type of the lambda `int`
-* to see that the builder has a SetResult method that takes `U`
-* and therefore `U = int`
-* but that doesn't inform us about the builder; instead the builder is just `MyWeirdBuilder`
-* and therefore, by looking at its `Task` property, we get `T = string` ?
-
-**Impossible:** The two general attempts aren't possible: they both fall down in the second step, when they attempt to look for `SetResult` methods on the builder type, in order to infer the builder's type. This is circular!
-
-
-
-## Discuss: async method interacts with the builder instance
-
-In the "async pattern", cancellation and progress are done with parameters:
-```csharp
-void f(int param, CancellationToken cancel = default(CancellationToken), IProgress<string> progress = null)
-```
-
-But for some tasklikes, cancellation and progress are instead faculties of the tasklike (equivalently, of its builder)...
-```csharp
-// Windows async tasklikes:
-async IAsyncActionWithProgress<string> TestAsync() { ... }
-var a = TestAsync();
-a.Progress += (s) => Console.WriteLine($"progress {s}");
-a.Cancel();
-```
-
-```csharp
-// IObservable tasklike:
-async IObservable<string> TestAsync() { ... }
-var s = TestAsync().Subscribe(s => Console.WriteLine(s));
-s.Dispose(); // maybe this should cancel the work
-```
-
-It's possible, in the proposal as outlined, for the async method body to communicate with its builder. Its only means of doing this is by awaiting a custom awaiter; its builder's `AwaitOnCompleted` method is responsible for recognizing that custom awaiter and doing the right thing:
-```csharp
-async IAsyncActionWithProgress<string> TestAsync()
-{
-   var (cancel, progress) = await new MyCustomAwaiter();
-   ...
-}
-```
-
-It would be possible to augment the language further, so that within the body of an async method it can use a reserved keyword `this.__builder` to refer in a strongly-typed way its current builder. But that doesn't seem worth it.
-
-It might be interesting if the coder could, in their own code, construct+manipulate a builder method and use it to call an async method. But that just seems too weird.
-
-
-
-## Discuss: overload resolution with async lambdas
-
-There's a thorny issue around overload resolution. The proposal gives on solution for it. I want to outline the problem and discuss alternatives.
-
-**Example1:** This is allowed and infers `T = int`. Effectively, type inference can "dig through" `Task<T>`. This is a really common pattern.
-```csharp
-// Example 1
-void f<T>(Func<Task<T>> lambda)
-f(async () => 3); // infers T = int
-```
-
-**Example2:** This is also allowed and infers `T = Task<int>`. Effectively, type inference can *synthesize* the type `Task<>` based solely on the `async` modifier. It's a weird behavior, one that doesn't happen elsewhere in the language, and is typically the wrong thing to do (because it's rare that you can write a correct `f` which handles both async Task-returning lambdas and non-async lambdas).
-```csharp
-// Example 2
-void f<T>(Func<T> lambda)
-f(async () => 3); // infers T = Task<int>
-```
-
-
-**Example3:** When the two examples above are overloaded, the compiler has rules to pick the winner. In particular, if two overload candidates have identical parameter types (after inferred types have been substituted in) then it uses the *more specific candidate* tie-breaker rule ([Better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member)). This tie-breaker ends up being used a lot, particularly for things like `Task.Run`.
-```csharp
-// Example 3
-void f<T>(Func<Task<T>> lambda)   // infers T = int and is applicable
-void f<T>(Func<T> lambda)         // infers T = Task<int> and is applicable
-f(async () => 3);   // picks more specific first overload with T = int
-```
-
-**Example4:** We want type inference to be able to dig through other Tasklikes as well, not just `Task`. But we can never change the Example3 rule which gives privileged inference to `Task<T>`:
-```csharp
-// Example 4
-void f<T>(Func<MyTask<T>> lambda)
-f(async () => 3);   // we want this to work and infer T = int
-
-void f<T>(Func<T> lambda)
-f(async () => 3);   // for back-compat, this will always infer T = Task<int>
-```
-
-**Example5:** So what do we want to happen when the two cases of Example4 are overloaded?
-```csharp
-// Example 5
-void f<T>(Func<MyTask<T>> lambda)  // infers T = int and is applicable
-void f<T>(Func<T> lambda)          // infers T = Task<int> and is applicable
-f(async () => 3);   // what should this do?
-```
-If we do indeed change type inference to dig through Tasklikes, but we don't change the rules for overload resolution, then it will give an **ambiguous overload** error. That's because it looks at the two candidates `f(Func<MyTask<int>>)` and `f(Func<Task<int>>)`...
-* The two don't have identical parameter types, so it won't go through the tie-breaker rules about *more specific*
-* Instead it looks at the rules for *better function member*
-* This requires to judge whether the conversion from expression `async()=>3` to type `Func<MyTask<int>>` or to type `Func<Task<int>>` is a [better conversion from expression](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-from-expression)
-* This requires to judge whether the type `Func<MyTask<int>>` or `Func<Task<int>>` is a [better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target)
-* This requires to judge whether there is an implicit conversion from `MyTask<int>` to `Task<int>` or vice versa.* 
-
-In general there won't be implicit conversions between arbitrary tasklikes and `Task`, and we shouldn't expect there to be. But that's beside the point. The only way we'll get a good overload resolution disambiguation between the candidates is if we go down the *tie-breaker* path to pick the more specific candidate. Once we've started down the *better function member* route, it's already too late.
-
-**Problem statement: Somehow, Example5 should pick the first candidate on grounds that it's more specific.**
-
-### Overload resolution approach 1
-
-**Approach1:** We could use two new pseudo-types `InferredTask` and `InferredTask<T>` as follows:
-1. We modify type inference so that, whenever it's asked to infer the *return* type of an async lambda, it always gives the answer `InferredTask<T>` where `T` is the inferred *result* type, or just the non-generic `InferredTask`.
-2. These new pseudo-types are merely placeholders for the fact that type inferences wanted to infer a tasklike but didn't know which one.
-3. When overload resolution attempts to judge whether two parameter sequences `{P1...Pn}` and `{Q1...Qn}` are identical, it treats these pseudo-types as identical to themselves and all tasklikes. This would allow it to go down the *more specific* tie-breaker route.
-4. If overload resolution picks a winning candidate with one of the pseudo-types, only then does it get collapsed down to the concrete type `Task` or `Task<T>`. 
-
-I struggled to make sense of this approach. Consider what is the *principle* behind type inference? Maybe we say that when type inference gives a result that mentions one of the pseudo-types, it is a statement that *all tasklikes would be equally applicable in its place`. But that's not really how type inference currently works. Consider
-```csharp
-void f<T>(Func<T> lambda1, Func<T,T> lambda2)
-f( ()=>3, (x)=>x.ToString());
-```
-This will happily infer `T = int` and simply not bother checking whether this candidate for `T` makes sense for the second argument. In general, C# type inference doesn't guarantee that successful type inference will produce parameter types that are applicable to arguments.
-
-The opposite possible principle behind type inference is that it should aggressively *prefer* to give type inference results that include the pseudo-types rather than any particular concrete tasklikes. The rationale here is that the whole point of the pseudo-types is to encourage candidates to be treated equivalent up to tasklikeness that arises from async lambdas. But this principle doesn't feel very principled.
-
-Next we'd have to decide how the chosen principle informs how the pseudo-types work with [Fixing](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#fixing). For instance, if a generic type parameter has lower bounds `InferredTask<int>` and `Task<int>` then what should it fix as? What if it has lower bounds `IEnumerable<InferredTask<int>>` and `IEnumerable<Task<int>>` and `IEnumerable<MyTask<int>>`?
-
-We'd also have to decide how the pseudo-types work with [lower bound inference](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#lower-bound-inferences) and upper bound inference and exact bound inference. For instance, if doing a lower bound inference from `InferredTask<int>` to `Task<T>`, we can certainly dig in to do a lower bound inference from `int` to `T`, but should we also do an exact inference from `Task` to this `InferredTask`? How about lower bound inference from `Task<int>` to `InferredTask<T>`? How about an upper bound inference?
-
-We'd also have to decide how the pseudo-types work with [applicable function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#applicable-function-member). Presumably any async lambda has an implicit conversion to a delegate type with return type `InferredTask<T>`. But what about all the other implicit conversions?
-
-In the end, there are too many difficult questions to address here, and we can't give good answers because we don't have good principles to start from.
-
-### Overload resolution approach 2
-
-What I've proposed in this feature proposal is that, when judging 
-
-[TODO]
-
-
-## Discuss: overload resolution
-
-## Discuss: IObservable
-
-----------------------
-TODO:
-
-
-
 ## Compilation notes and edge cases
 
 **Concrete tasklike**. The following kind of thing is conceptually impossible, because the compiler needs to know the *concrete* type of the tasklike that's being constructed (in order to construct it).
@@ -347,21 +125,13 @@ class C<T> where T : MyTasklike {
 }
 ```
 
-**Incomplete builder: binding**. The compiler should recognize the following as an async method that doesn't need a return statement, and should bind it accordingly. There is nothing wrong with the `async` modifier nor the absence of a `return` keyword. The fact that `MyTasklike`'s builder doesn't fulfill the pattern is an error that comes later on: it doesn't prevent the compiler from binding method `f`.
+**Incomplete builder**. The compiler should recognize the following method `f` as an async method that doesn't need a return statement, and should bind it accordingly. There is nothing wrong with the `async` modifier nor the absence of a `return` keyword. The fact that `MyTasklike`'s builder doesn't fulfill the pattern is an error that comes later on: it doesn't prevent the compiler from binding method `f`.
 ```cs
 class C { async MyTasklike f() { } }
 [Tasklike(typeof(string))] class MyTasklike {}
 ```
 
-**Wrong generic**. To be a tasklike, a type must (1) have a [Tasklike] attribute on it, (2) have arity 0 or 1. If it has the attribute but the wrong arity then it's not a Tasklike.
-```cs
-class C { async MyTasklike f() { } } // okay: return type has arity 0
-class C { async MyTasklike<int> f() { return 1;} } // okay: return type has arity 1:int
-class C { async MyTasklike<int> f() { return "s";} } // error: should return an int, not a string
-class C { async MyTasklike<int,int> f() { } } // error
-```
-
-**Incomplete builder: codegen**. If the builder doesn't fulfill the pattern, well, that's an edge case. It should definitely give errors (like it does today e.g. if you have an async Task-returning method and target .NET4.0), but it doesn't matter to have high-quality errors (again it doesn't have high quality errors today). One unusual case of failed builder is where the builder has the wrong constraints on its generic type parameters. As far as I can tell, constraints aren't taken into account elsewhere in the compiler (the only other well known methods with generic parameters are below, and they're all in mscorlib, so no chance of them ever getting wrong)
+If the builder doesn't fulfill the pattern, well, that's an edge case. It should definitely give errors (like it does today e.g. if you have an async Task-returning method and target .NET4.0), but it doesn't matter to have high-quality errors (again it doesn't have high quality errors today). One unusual case of failed builder is where the builder has the wrong constraints on its generic type parameters. As far as I can tell, constraints aren't taken into account elsewhere in the compiler (the only other well known methods with generic parameters are below, and they're all in mscorlib, so no chance of them ever getting wrong)
 ```
 System.Array.Empty
 System_Runtime_InteropServices_WindowsRuntime_WindowsRuntimeMarshal__AddEventHandler_T
@@ -370,3 +140,7 @@ System_Activator__CreateInstance_T
 System_Threading_Interlocked__CompareExchange_T
 Microsoft_VisualBasic_CompilerServices_Conversions__ToGenericParameter_T_Object
 ```
+
+# Design rationale and alternatives
+
+For explanation of why the proposal is this way, and to see alternatives, please read the [Design rationale and alternatives](feature - arbitrary async returns - discussion.md).
