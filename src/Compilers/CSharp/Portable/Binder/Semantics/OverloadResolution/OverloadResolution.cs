@@ -1254,16 +1254,13 @@ namespace Microsoft.CodeAnalysis.CSharp
                     continue;
                 }
 
-                if (!considerRefKinds || Conversions.ClassifyImplicitConversion(type1tasklike, type2tasklike, ref useSiteDiagnostics).Kind != ConversionKind.Identity)
+                if (Conversions.ClassifyImplicitConversion(type1tasklike, type2tasklike, ref useSiteDiagnostics).Kind != ConversionKind.Identity)
                 {
-                    // If considerRefKinds is false, conversion between parameter types isn't classified by the if condition.
-                    // This assert is here to verify the assumption that the conversion is never an identity in that case and
-                    // we can skip classification as an optimization.
-                    Debug.Assert(considerRefKinds || Conversions.ClassifyImplicitConversion(type1tasklike, type2tasklike, ref useSiteDiagnostics).Kind != ConversionKind.Identity);
                     allSame = false;
                 }
-
-                // One of them was better. Does that contradict a previous result or add a new fact?
+                
+                // One of them was better. (even if they were identical "up-to-tasklike", a fact which is solely used to compute "allSame")
+                // Does that contradict a previous result or add a new fact?
                 if (result == BetterResult.Neither)
                 {
                     if (!(ignoreDowngradableToNeither && okToDowngradeToNeither))

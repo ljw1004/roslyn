@@ -184,7 +184,7 @@ If we do indeed change type inference to dig through Tasklikes, but we don't cha
 * This requires to judge whether the type `Func<MyTask<int>>` or `Func<Task<int>>` is a [better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target)
 * This requires to judge whether there is an implicit conversion from `MyTask<int>` to `Task<int>` or vice versa.
 
-In general there won't be implicit conversions between arbitrary tasklikes and `Task`, and we shouldn't expect there to be. But that's beside the point. The only way we'll get a good overload resolution disambiguation between the candidates is if we go down the *tie-breaker* path to pick the more specific candidate. Once we've started down the *better function member* route, it's already too late.
+Folks might decide to have user-defined implicit conversions between their tasklikes and `Task`. But that's beside the point. The only way we'll get a good overload resolution disambiguation between the candidates is if we go down the *tie-breaker* path to pick the more specific candidate. Once we instead start down the *better function member* route, it's already too late, and forever will it dominate our destiny.
 
 **Problem statement: Somehow, Example5 should pick the first candidate on grounds that it's more specific.**
 
@@ -228,21 +228,22 @@ The next approach takes the second principle, and turns it into something simple
 
 **Approach2:** The whole point is that we want tasklikes to go down the "tie-breaker" path. So let's achieve that directly: *when judging whether `{P1...Pn}` and `{Q1...Qn}` are identical, do so **up to tasklikes**. * This way we don't need to mess with pseudo-types.
 
-This is the approach adopted by the feature proposal.
+This is the approach put forwards in the the feature proposal.
 
-I'd initially put it forwards only as a joke. It seems shocking! My first instinct is that we should only allow tasklike equivalence where it relates directly to an async lambda (as in approach 1), not everywhere. So let's explore the ramifications...
+I'd initially put it forwards only as a joke. It seems shocking! My first instinct is that we should only allow tasklike equivalence where it relates directly to an async lambda (as in approach 1), not everywhere. So let's explore the ramifications in depth.
 
 This equivalence-up-to-tasklike is of course performed only after [applicability](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#applicable-function-member). In some cases when comparing two applicable candidates, this approach will cheat us of the *better function member* comparison, and shift us down the *tie-breaker* comparison. So the key question to ask is: **Are there any situations where *better function member* would have given us better results than the *tie-breaker* for choosing between two applicable candidates?**
 
-*Better function member* means is built up from an implicit conversion from `Pi` to `Qi` and builds it up to say the the top candidate is better than the bottom is these four cases:
+*Better function member* is built up from an implicit conversion from `Pi` to `Qi` and builds it up to say the the first candidate is better than the second in these four cases:
 ```
-// [1]        // [2]              // [3]              // [4]
+// [1]        // [2]              // [3]              // [4], a combination of [2+3]
 f(Pi x);      f(Func<Pi> x);      f(Task<Pi> x);      f(Func<Task<Pi>> x);
 f(Qi x);      f(Func<Qi> x);      f(Task<Qi> x);      f(Func<Task<Qi>> x);
 ```
 Under what circumstances would two applicable candidates, which differ only in tasklikes, have such an implicit conversion? The fact that delegate return types are at best covariant and `Task` is invariant means there aren't many possibilities...
 * There might be a user-defined conversion from one tasklike to another, although this only applies at the top level [1]
 * There might be a subtype relation from one tasklike to another, and this only applies at top level [1] or nested inside covariant delegate return types [2].
+* There might be an async lambda argument.
 
 **User-defined tasklike conversions.** I bet that user-defined conversions will be common. `ValueTask` in corefx already has an implicit conversion *from* `Task`. I bet folks will likely add implicit conversions *to* `Task`, e.g. so they can do `Task.WhenAll(mytasklike1, mytasklike2)`.
 ```csharp
@@ -259,15 +260,20 @@ Under what circumstances would two applicable candidates, which differ only in t
 Let's explore the scenarios in which *better function member* might give a better overload resolution for user-defined conversions than *tie-breaker*:
 
 ```csharp
-// CASE1: ??? I don't know why my prototype prefers the second candidate
-void f<T>(MyTask<T> t)
-void f<T>(Task<T> t)
-Task<int> t = ...; f(t);
+// CASE1: ??
+void f(Task<int> x)
+void f(MyTask<int> x)
+Task<int> x; f(x); // Task<int>
 
-// CASE2: ??? I don't know why my prototype prefers the second candidate
-void f<T>(MyTask<T> t, long l)
-void f<T>(Task<T> t, long l)
-Task<int> t = ...; int i=1; f(t,i);
+// CASE2: irrelevant, since the second candidate is inapplicable (fails type inference)
+void f<T>(Task<T> x)
+void f<T>(MyTask<T> x)
+Task<int> x; f(x); // Task<int>
+
+// CASE3: ??
+void f<T>(Task<T> x)
+void f(MyTask<int> x)
+Task<int> x; f(x); // Task<int>
 ```
 
 TODO

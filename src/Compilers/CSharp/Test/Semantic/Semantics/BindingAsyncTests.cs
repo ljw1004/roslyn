@@ -197,6 +197,79 @@ namespace System.Runtime.CompilerServices { class TasklikeAttribute : Attribute 
 
 
         [Fact]
+        public void AsyncTasklikeOverloadInvestigations()
+        {
+            var source = @"
+using System;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
+
+class Program
+{
+    static Task<int> arg1 = null;
+    static int arg2 = 0;
+
+    static int f1(MyTask<int> t) => 0;
+    static int f1(Task<int> t) => 1;
+    static int r1 = f1(arg1); // 1
+
+    static void Main()
+    {
+        Console.Write(r1);
+    }
+}
+
+namespace System.Runtime.CompilerServices
+{
+    public class TasklikeAttribute : Attribute
+    {
+        public TasklikeAttribute(Type builderType) { }
+    }
+}
+
+
+[Tasklike(typeof(MyTaskBuilder<>))]
+public class ValueTask<T>
+{
+    public static implicit operator ValueTask<T>(Task<T> task) => null;
+}
+
+[Tasklike(typeof(MyTaskBuilder<>))]
+public class MyTask<T>
+{
+    public static implicit operator MyTask<T>(Task<T> task) => null;
+    public static implicit operator Task<T>(MyTask<T> mytask) => null;
+}
+
+class ValueTaskBuilder<T>
+{
+    public static ValueTaskBuilder<T> Create() => null;
+    public void Start<TSM>(ref TSM sm) where TSM : IAsyncStateMachine { }
+    public void SetStateMachine(IAsyncStateMachine sm) { }
+    public void SetResult(T r) { }
+    public void SetException(Exception ex) { }
+    public ValueTask<T> Task => null;
+    public void AwaitOnCompleted<TA, TSM>(ref TA a, ref TSM sm) where TA : INotifyCompletion where TSM : IAsyncStateMachine { }
+    public void AwaitUnsafeOnCompleted<TA, TSM>(ref TA a, ref TSM sm) where TA : ICriticalNotifyCompletion where TSM : IAsyncStateMachine { }
+}
+
+class MyTaskBuilder<T>
+{
+    public static MyTaskBuilder<T> Create() => null;
+    public void Start<TSM>(ref TSM sm) where TSM : IAsyncStateMachine { }
+    public void SetStateMachine(IAsyncStateMachine sm) { }
+    public void SetResult(T r) { }
+    public void SetException(Exception ex) { }
+    public ValueTask<T> Task => null;
+    public void AwaitOnCompleted<TA, TSM>(ref TA a, ref TSM sm) where TA : INotifyCompletion where TSM : IAsyncStateMachine { }
+    public void AwaitUnsafeOnCompleted<TA, TSM>(ref TA a, ref TSM sm) where TA : ICriticalNotifyCompletion where TSM : IAsyncStateMachine { }
+}
+";
+            CompileAndVerify(source, additionalRefs: new[] {MscorlibRef_v4_0_30316_17626}, expectedOutput: "1");
+        }
+
+
+        [Fact]
         public void AsyncLambdas()
         {
             var source = @"
