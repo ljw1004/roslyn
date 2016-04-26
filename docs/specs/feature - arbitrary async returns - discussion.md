@@ -284,18 +284,18 @@ I don't know what kind of semantics you'd expect from an `IObservable`-returning
 ```csharp
 async IObservable<string> Option1()
 {
-    // This behaves a lot like Task<string>.ToObservable() – the async method starts the moment
+    // This behaves a lot like Task<string>.ToObservable() -- the async method starts the moment
     // you execute Option1, and if you subscribe while it's in-flight then you'll get an OnNext+OnCompleted
     // as soon as the return statement executes, and if you subscribe later then you'll get OnNext+OnCompleted
     // immediately the moment you subscribe (with a saved value).
-    // Presumably there's no way for Subscription.Dispose() to abort the async method...
+    // Presumably there's no way for Subscription.Dispose() to cancel the async method...
     await Task.Delay(100);
     return "hello";
 }
 
 async IObservable<string> Option2()
 {
-    // This behaves a lot like Observable.Create() – a fresh instance of the async method starts
+    // This behaves a lot like Observable.Create() -- a fresh instance of the async method starts
     // up for each subscriber at the moment of subscription, and you'll get an OnNext the moment
     // each yield executes, and an OnCompleted when the method ends.
     await Task.Delay(100);
@@ -309,5 +309,7 @@ async IObservable<string> Option2()
 I don't know which of these options feels best.
 
 I also don't know how cancellation should work. The scenario I imagine is that an `async IObservable` method has issued a web request, but then the subscriber disposes of its subscription. Presumably you'd want to cancel the web request immediately? Is disposal the primary (sole?) way for `IObservable` folks to cancel their aysnc sequences? Or do they prefer to have a separate stream which receives cancellation requests?
+
+Also, when you call `Dispose` on an iterator it's a bit different. By definition the iterator isn't currently executing. So all it does is resume iterator execution by going straight to the finally blocks. This might be good enough for async - e.g. the finally block could signal a cancellation that was being used throughout the method. (It could even await until the outstanding requests had indeed finished their cancellation, although this would be cumbersome to code.) But it's uneasy, and I wonder if a different form of cancellation is needed?
 
 We need guidance from `IObservable` subject matter experts.
