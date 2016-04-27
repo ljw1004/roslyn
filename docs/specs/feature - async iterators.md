@@ -271,3 +271,12 @@ The reason for restricting to arity-1 generic tasklikes is to allow type inferen
 If we wanted to support lambdas with higher arity, we'd have to enshrine the convention that an "arity 2 builder" has two generic type parameters, the first relating to any `return` statements inside it, the second relating to any `yield` statements. This is plausible but a bit weird.
 
 C# doesn't have to suppport iterator lambdas, nor async iterator lambdas, so the problem disappears. For C# we could decide to allow arbitrary arity builders for an async iterator lambda. But I don't like this because (1) it feels awkward, (2) it would preclude C# from ever having iterator lambdas in the future.
+
+
+### Discussion: no warning about async iterator lacking `await`
+
+Currently, if an async method lacks any `await` operators, it gives a warning. This was an important part of helping understand the async feature when it first came out.
+
+I don't think we need give a similar warning for async iterator methods that lack any `await` operator. (1) There are legitimate use-cases where you want to use the feature solely to write a custom non-async iterator; (2) I think people understand async well enough now that it's not needed.
+
+We might consider allowing a builder which lacks `AwaitOnCompleted` and `AwaitUnsafeOnCompleted` methods, and uses this absence to indicate that the `await` operator isn't allowed in the method. I don't know. That'd only feel natural inside a method with a new `iterator` modifier.
