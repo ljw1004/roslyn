@@ -155,6 +155,7 @@ Async iterator methods:
 * Its builder `Builder<T>` must have public instance method `YieldValue<TSM>(T value, ref TSM sm) where TSM : IAsyncStateMachine`; every `yield return e` is translated into `builder.YieldValue(e, ref sm); return; label:`, and it is an error if `e` is not implicitly convertible to `T`. (The `sm` parameter is to allow for builders that box at the first `yield`, but can be ignored otherwise).
 * Its builder must have a public instance method `SetResult()`; when the async iterator method encounters `yield break` or the closing brace then it calls `builder.SetResult()`.
 * Calls into `builder.SetException` and `builder.AwaitOnCompleted` and `builder.AwaitUnsafeOnCompleted` are as before.
+* If the return type is specifically `System.Collections.Generic.IAsyncEnumerable<T>` with builder `System.Runtime.CompilerServices.AsyncEnumerableMethodBuilder<T>`, or the return type is `System.Collections.Generic.IAsyncEnumerator<T>` with builder `System.Runtime.CompilerServices.AsyncEnumeratorMethodBuilder<T>`, then the compiler is at liberty to *assume* it knows the shape and implementations of these types, and is at liberty to *hard-code* a different more efficient implementation.
  
 ```antlr
 primary_no_array_creation_expression
@@ -166,3 +167,32 @@ async_access
 ```
 
 An *async_access* consists of the contextual keyword `async`. The only context where it's a keyword, and where *async_access* is allowed, is inside the body of a method of an async or async iterator method whose return type isn't `void` and whose builder type has a public field or property named `Async`. It is classified as a value and is readonly. Its type is the type of that field or property, and its value is `builder.Async`.
+
+
+## Design rationale and discussion
+
+### Discuss: cancellation token to `MoveNextAsync`
+
+Some folks suggest that each individual call to `MoveNextAsync` should have its own cancellation token. This feels weird. We've always passed in cancellation token at the granularity of an async method, and there's no reason to change that.
+
+It's also weird because on the consumer side, in the *async-foreach* construct, there's no good place for the user to write a cancellation token that will go into each `MoveNextAsync`.
+
+
+### Discuss: expected shape of `IAsyncEnumerable<T>`
+
+Here's my rough draft of what `IAsyncEnumerable<T>` could look like. I figure that there's not much benefit in having `MoveNextAsync` return `ValueTask<bool>` over `Task<bool>` since neither will result in any heap allocations. I wasn't sure if configuring the await was worth splitting into separate `IConfiguredAsyncEumerable / IConfigureAsyncEnumerator`, or if it'd feel simpler just to use the same single type.
+
+```csharp
+interface IAsyncEnumerable<T>
+{
+   IAsyncEnumerator<T> GetEnumerator(CancellationToken cancel = default(CancellationToken));
+   IAsyncEnumerable<T> ConfigureAwait(bool b);
+}
+
+interface IAsyncEnumerator<T>
+{
+   IAsyncEnumerator<T> ConfigureAwait(bool b);
+   T Current {get;}
+   ConfiguredTaskAwaitable<bool> MoveNextAsync();
+}
+```
