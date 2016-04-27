@@ -35,35 +35,49 @@ foreach (async var x in GetStreamFactory().ConfigureAwait(false)) { ... }
 foreach (async var x in GetStream().ConfigureAwait(false)) { ... }
 ```
 
-**Example4:** One of the BCL `IAsyncEnumerable` features is its `GetEnumerator()` method takes an optional cancellation token.
+**Example4:** One of the BCL `IAsyncEnumerable` features is its `GetEnumerator()` method takes an optional cancellation token. Again, this is part of the BCL and not a language feature.
 ```csharp
 // EXAMPLE 4: cancellation when consuming IAsyncEnumerable
 var cts = new CancellationTokenSource();
 foreach (async var x in GetStreamFactory().GetEnumerator(cts.Token)) { ... }
 ```
 
-**Example5:** 
+**Example5:** There's a new contextual keyword `async` inside async iterator and async tasklike methods, similar to `this` and `base` except it refers to the current async *method instance*. We'll see later that this is a general-purpose technique needed for a variety of situations, but for now we'll just use it to get hold of the token that was passed to `GetEnumerator`.
 ```csharp
 // EXAMPLE 5:
 async IAsyncEnumerable<int> GetStreamAsync()
 {
-    var cancel = async.Cancellatio
+    await Task.Delay(100, async.CancellationToken);
+    yield 1;
+    await Task.Delay(200, async.CancellationToken);
+    yield 2;
 }
 ```
 
-// EXPANDS TO THIS:
+**Example6:** Everything is pattern-based.
+```csharp
+// foreach (T x in e) embedded_statement;
+
+// if e.GetEnumerator() binds, then it expands to
+foreach (T x in e.GetEnumerator()) embedded_statement;
+
+// otherwise it expands to
 {
-    var enumerator = GetStreamFactory().GetAsyncEnumerator();
     try {
-        while (await enumerator.MoveNextAsync()) {
-            var x = enumerator.Current;
+        while (await e.MoveNextAsync()) {
+            var x = e.Current;
             ...
         }
     }
     finally {
-        enumeratr.Dispose();
+        (e as IDisposable).Dispose();
     }
 }
+
+```
+
+
+// EXPANDS TO THIS:
 
 // EXPANDS TO THIS:
 {
