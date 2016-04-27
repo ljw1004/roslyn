@@ -196,3 +196,18 @@ interface IAsyncEnumerator<T>
    ConfiguredTaskAwaitable<bool> MoveNextAsync();
 }
 ```
+
+
+### Discuss: `async` modifier and `iterator` modifier
+
+* *Async* is signalled by the `async` modifier
+* *Iterators* are signalled by the presence of `yield return` or `yield break` inside the method
+
+In this proposal I've stuck to the same convention: an *async iterator* is signalled by both the `async` modifier and the `yield` inside it.
+
+Under this proposal, I can imagine people using async iterators just to build normal iterators (in case they want more flexibility that what the standard iterators provide). In that case it'd feel weird for them to have to use the `async` modifier.
+
+Under this proposal I've used the `async` contextual keyword, to tie it back to the `async` modifier. That might also feel weird.
+
+Under this proposal, I've disallowed async iterator lambdas. That's to follow C# precedent where iterator lambdas aren't allowed. Last time we discussed it at C# LDM, there was almost no support for iterator lambdas. (VB will continue to allow them of course).
+
