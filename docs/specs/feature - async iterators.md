@@ -44,7 +44,7 @@ var cts = new CancellationTokenSource();
 foreach (async var x in GetStreamFactory().GetEnumerator(cts.Token)) { ... }
 ```
 
-**Example5:** There's a new contextual keyword `async` inside async iterator and async tasklike methods, similar to `this` and `base` except it refers to the current async *method instance*. We'll see later that this is a general-purpose mechanism needed for a variety of async methods, but for now the library just uses the mechanism to let the async iterator get hold of the cancellation token that was passed to `GetEnumerator`.
+**Example5:** There's a new contextual keyword `async` inside eligible async iterator and async tasklike methods, similar to `this` and `base` except it refers to the current async *method instance*. We'll see later that this is a general-purpose mechanism needed for a variety of async methods, but for now the library just uses the mechanism to let the async iterator get hold of the cancellation token that was passed to `GetEnumerator`.
 ```csharp
 // EXAMPLE 5:
 async IAsyncEnumerable<int> GetStreamAsync()
@@ -198,18 +198,46 @@ interface IAsyncEnumerator<T>
 ```
 
 
-### Discuss: `async` modifier and `iterator` modifier
+### Discuss: `async` modifier but no `iterator` modifier
 
 * *Async* is signalled by the `async` modifier
 * *Iterators* are signalled by the presence of `yield return` or `yield break` inside the method
 
 In this proposal I've stuck to the same convention: an *async iterator* is signalled by both the `async` modifier and the `yield` inside it.
 
+(We could separately imagine that the keyword `iterator` be allowed optionally for iterator and async-iterator methods).
+
 Under this proposal, I can imagine people using async iterators just to build normal iterators (in case they want more flexibility that what the standard iterators provide). In that case it'd feel weird for them to have to use the `async` modifier.
 
-Under this proposal I've used the `async` contextual keyword, to tie it back to the `async` modifier. That might also feel weird.
+Under this proposal I've used the `async` contextual keyword, to tie it back to the `async` modifier. That might also feel weird for folks writing pure iterators with the feature.
 
 Under this proposal, I've disallowed async iterator lambdas. That's to follow C# precedent where iterator lambdas aren't allowed. Last time we discussed it at C# LDM, there was almost no support for iterator lambdas. (VB will continue to allow them of course).
+
+
+### Discuss: `async` contextual keyword
+
+In this proposal I've used `async` as a new contextual keyword. It will only exist in async methods that return a non-void tasklike whose builder has an `Async` property on it. Note that `Task` and `Task<T>` today do not meet this criterion: therefore `async` will not be a keyword inside existing async methods:
+
+```csharp
+class async { void f() {} }
+
+async Task g()
+{
+  async async = new async();  // refers to type "async" and declares an identifier named "async"
+  async.f();                  // refers to identifier named "async"
+}
+
+
+async IAsyncEnumerable<int> h()
+{
+   async async = new async(); // error because async is a contextual keyword due to IAsyncEnumerable
+   async.f();                 // only allowed if IAsyncEnumerable's builder has an Async property with f() on it
+}
+```
+
+It has been suggested to use `await` as the contextual keyword, e.g. `var x = await.CancellationToken`. This would let the existing `Task` and `Task<T>` async methods refer to their builder. However there's no point, since there are no interesting interactions that an async method can do with its Task's builder.
+
+It has been suggested that this mechanism would avoid the need to pass cancellation tokens around everywhere. That's not true. You still need to write your async methods to take cancellation token parameters. (1) It's an established good design pattern to use cancellation token parameters because it composes better. (2) If you don't do it this way, and you want some other mechanism like F#'s ambient cancellation-token state, you can already do this with a global variable.
 
 
 ### Discuss: syntax for async-foreach
