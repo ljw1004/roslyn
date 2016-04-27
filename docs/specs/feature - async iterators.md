@@ -2,7 +2,7 @@
 
 (There's already a discussion thread for this: https://github.com/dotnet/roslyn/issues/261)
 
-The way I've written this proposal is with a tiny language change which leaves almost everything up to the libraries. Even an `IAsyncEnumerable`-returning async iterator method is generated chiefly by the libraries. I'll start by writing the end-to-end experience of how users will experience, and then I'll get to the actual tiny language proposal.
+The way I've written this proposal is with a tiny language change which leaves almost everything up to the libraries. The language doesn't hard-code anything specifically about `IAsyncEnumerable`. I'll start by writing the end-to-end of what coders will experience, then I'll get to the actual tiny language proposal.
 
 ## Explaining examples
 
@@ -78,7 +78,7 @@ foreach (T x in e.GetEnumerator()) embedded_statement;
 }
 ```
 
-**Example7:** On the production side, again everything is pattern-based. Building upon the [ValueTask proposal](feature%20-%20arbitrary%20async%20returns.md), for an async method with return type `C`, it looks up a builder `CB` for that type, and the builder's responsible for handling the `await` operator, the `yield` statement, and the new `async` contextual keyword. (Rationale: we've already established that awaits are better handled by a builder rather than solely by the language; also, this will allow for `IObservable` and `IAsyncActionWithProgress`).
+**Example7:** On the production side, again everything is pattern-based. For an async method with return type `C`, it looks up a builder `CB` for that type, and the builder's responsible for handling the `await` operator as today, and also the `yield` statement and the new `async` contextual keyword. (Rationale: we've already established that awaits are better handled by a builder rather than solely by the language; also, this will allow for `IObservable` and `IAsyncActionWithProgress`).
 ```csharp
 // EXAMPLE 7:
 // async C f()
@@ -129,3 +129,40 @@ struct fStateMachine()
 ```
 
 
+## Proposal
+
+```antlr
+foreach_statement
+    : ...
+    | 'foreach' '(' 'async' local_variable_type identifier 'in' expression ')' embedded_statement
+    ;
+```
+
+There is a new form of [foreach statement](https://github.com/ljw1004/csharpspec/blob/f12213c4ffe77a51dbc5412250bef6af75333f32/statements.md#the-foreach-statement) distinguished by the `async` contextual keyword. Note that this is not a parse ambiguity, but it requires lookahead to determine whether `async` is a typename or a modifier.
+
+This async-foreach statement expands as per Example6 above. It is an error if the static type of `expression` doesn't implement `IDisposable`. It is an error if any of the expansions fail to bind. (This requires either `expression.GetEnumerator()` to bind, or `expression.MoveNextAsync()` to bind and be awaitable and also `expression.Current` to bind and have a value). It is in error to use an async-foreach in a method that doesn't allow `await`.
+
+The rest of this proposal builds upon the [arbitrary async return](feature%20-%20arbitrary%20async%20returns.md) feature proposal...
+
+Define:
+* If a method has the `async` modifier and no `yield` statements then it is an *async method*.
+* If a method has the `async` modifier and one or more `yield` statements then it is an *async iterator method*
+
+Async iterator methods:
+* It is an error for an async iterator method to have a `return` statement.
+* It is an error for an async iterator method to be a lambda.
+* The return type for an async iterator method must be a *generic Tasklike* `Tasklike<T>`.
+* Its builder `Builder<T>` must have public instance method `YieldValue<TSM>(T value, ref TSM sm) where TSM : IAsyncStateMachine`; every `yield return e` is translated into `builder.YieldValue(e, ref sm); return; label:`, and it is an error if `e` is not implicitly convertible to `T`. (The `sm` parameter is to allow for builders that box at the first `yield`, but can be ignored otherwise).
+* Its builder must have a public instance method `SetResult()`; when the async iterator method encounters `yield break` or the closing brace then it calls `builder.SetResult()`.
+* Calls into `builder.SetException` and `builder.AwaitOnCompleted` and `builder.AwaitUnsafeOnCompleted` are as before.
+ 
+```antlr
+primary_no_array_creation_expression
+   : ...
+   | async_access;
+   
+async_access
+   | `async`;
+```
+
+An *async_access* consists of the contextual keyword `async`. The only context where it's a keyword, and where *async_access* is allowed, is inside the body of a method of an async or async iterator method whose return type isn't `void` and whose builder type has a public field or property named `Async`. It is classified as a value and is readonly. Its type is the type of that field or property, and its value is `builder.Async`.
