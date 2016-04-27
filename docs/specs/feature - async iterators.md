@@ -140,7 +140,7 @@ foreach_statement
 
 There is a new form of [foreach statement](https://github.com/ljw1004/csharpspec/blob/f12213c4ffe77a51dbc5412250bef6af75333f32/statements.md#the-foreach-statement) distinguished by the `async` contextual keyword. Note that this is not a parse ambiguity, but it requires lookahead to determine whether `async` is a typename or a modifier.
 
-This async-foreach statement expands as per Example6 above. It is an error if the static type of `expression` doesn't implement `IDisposable`. It is an error if any of the expansions fail to bind. (This requires either `expression.GetEnumerator()` to bind, or `expression.MoveNextAsync()` to bind and be awaitable and also `expression.Current` to bind and have a value). It is in error to use an async-foreach in a method that doesn't allow `await`.
+This async-foreach statement expands as per Example6 above. It is an error if the static type of `expression` doesn't implement `IDisposable`. It is an error if any of the expansions fail to bind. (This requires either `expression.GetEnumerator()` to bind, or `expression.MoveNextAsync()` to bind and be awaitable and also `expression.Current` to bind and have a value and also `expression` to implement `IDisposable`). It is in error to use an async-foreach in a method that doesn't allow `await`.
 
 The rest of this proposal builds upon the [arbitrary async return](feature%20-%20arbitrary%20async%20returns.md) feature proposal...
 
