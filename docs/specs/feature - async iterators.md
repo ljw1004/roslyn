@@ -272,6 +272,7 @@ foreach async (var x in asyncStream) { ... }
 foreach (async var x in asyncStream) { ... } 
 foreach await (var x in asyncStream) { ... }
 foreach (await var x in asyncStream) { ... }
+await foreach (var x in asyncStream) { ... }
 ```
 
 There'll be lots of debate over which exact syntax to use for an async-foreach. I don't know which is best. I'm inclined to write a prototype which supports *all* of them to see how they all feel in practice.
