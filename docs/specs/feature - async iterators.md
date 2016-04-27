@@ -173,9 +173,33 @@ An *async_access* consists of the contextual keyword `async`. The only context w
 
 ### Discuss: cancellation token to `MoveNextAsync`
 
-Some folks suggest that each individual call to `MoveNextAsync` should have its own cancellation token. This feels weird. We've always passed in cancellation token at the granularity of an async method, and there's no reason to change that.
+Some folks suggest that each individual call to `MoveNextAsync` should have its own cancellation token. This feels weird. We've always passed in cancellation token at the granularity of an async method, and there's no reason to change that: from the perspective of users, the async method they see is the *async iterator method*.
 
-It's also weird because on the consumer side, in the *async-foreach* construct, there's no good place for the user to write a cancellation token that will go into each `MoveNextAsync`.
+It's also weird because on the consumer side, in the *async-foreach* construct, there's no good place for the user to write a cancellation token that will go into each `MoveNextAsync`: from the perspective of the users, they don't even see the existence of `MoveNextAsync`.
+
+Also: it would be weird to attempt to write an async iterator method where the cancellation-token that you want to listen to gets changed out under your feet every time you do a yield:
+```csharp
+// Here I'm tring to write an async iterator that can handle a fresh CancellationToken
+// from each MoveNextAsync...
+async IAsyncEnumerable<int> f()
+{
+   var cts = CancellationTokenSource.CreateLinkedTokenSource(async.CancellationToken);
+   var t1 = Task.Delay(100, cts.Token);
+   var t2 = Task.Delay(100, cts.Token);
+   await t1;
+   yield 1;
+   
+   // ??? at this point can I even trust "cts" any more?
+   // or do I need to create a new linked token source for further work that I do now?
+   
+   yield 2;
+   
+   await t2;
+   // ?? is this even valid anymore, given that it's using an outdated cancellation token?
+   // If someone cancels that latest freshest token passed in the latest MoveNextAsync,
+   // how will that help cancel the existing outstanding tasks?
+}
+```
 
 
 ### Discuss: expected shape of `IAsyncEnumerable<T>`
