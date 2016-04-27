@@ -211,3 +211,15 @@ Under this proposal I've used the `async` contextual keyword, to tie it back to 
 
 Under this proposal, I've disallowed async iterator lambdas. That's to follow C# precedent where iterator lambdas aren't allowed. Last time we discussed it at C# LDM, there was almost no support for iterator lambdas. (VB will continue to allow them of course).
 
+
+### Discuss: syntax for async-foreach
+
+```csharp
+foreach (var x in asyncStream) { ... } // implicitly does an async-foreach if it fits the pattern
+foreach async (var x in asyncStream) { ... }
+foreach (async var x in asyncStream) { ... } 
+foreach await (var x in asyncStream) { ... }
+foreach (await var x in asyncStream) { ... }
+```
+
+There'll be lots of debate over which exact syntax to use for an async-foreach. I don't know which is best. I'm inclined to write a prototype which supports *all* of them to see how they all feel in practice.
