@@ -236,6 +236,23 @@ But the thing is, this change in rule only applies if none of the applicable can
 
 Honestly? There aren't any, not that I can think of.
 
+```csharp
+// EXAMPLE 1
+void f(Task<int> t) => 0;
+void f(MyTask<int t) => 1;
+Task<int> arg; f(arg); // prefers "0" because it is a better function member (identity)
+
+// EXAMPLE 2
+void f<T>(Task<T> t) => 0;
+void f<T>(MyTask<T> t) => 1;
+Task<int> arg; f(arg); // prefers "0" because the other candidate fails type inference
+
+// EXAMPLE 3
+void f<T>(Task<T> t) => 0;
+void f(MyTaks<int> t) => 1;
+Task<int> arg; f(arg); // prefers "0" because it's a better function member (identity)
+```
+
 
 ## Discuss: IObservable
 
