@@ -223,3 +223,23 @@ foreach (await var x in asyncStream) { ... }
 ```
 
 There'll be lots of debate over which exact syntax to use for an async-foreach. I don't know which is best. I'm inclined to write a prototype which supports *all* of them to see how they all feel in practice.
+
+
+### Discussion: type inference
+
+Async iterator methods are not allowed to be lambdas in C#. Therefore there are no type inference concerns about them.
+
+(As for VB, it will need to figure out type inference and overload resolution for them, similar to how it has to figure it out for arbitrary async returns. The default return type for an async lambda is `IAsyncEnumerable<T>`.)
+
+
+### Discussion: `IAsyncOperationWithProgress<TResult,TProgress>`
+
+The Windows type `IAsyncOperationWithProgress<TResult,TProgress>` represents something that can report progress of type `TProgress`, and can also return a value of type `TResult`.
+
+Under the current proposal you can't write an async iterator method with this return type. That's because (1) we only work with arity-1 generic tasklikes, (2) we require a `builder.SetResult()` method that takes no arguments.
+
+The reason for restricting to arity-1 generic tasklikes is to allow type inference of lambdas: there has to be a way for the compiler to infer from a lambda containing `return 5` that its return type is `Task<int>`. And in VB there has to be a way for the compiler to infer from a lambda containing `Yield 5` that its return type is `IEnumerable<int>`. We solved this problem by requiring the tasklike to have arity 1, and its generic type parameter is the type of the operand.
+
+If we wanted to support lambdas with higher arity, we'd have to enshrine the convention that an "arity 2 builder" has two generic type parameters, the first relating to any `return` statements inside it, the second relating to any `yield` statements. This is plausible but a bit weird.
+
+C# doesn't have to suppport iterator lambdas, nor async iterator lambdas, so the problem disappears. For C# we could decide to allow arbitrary arity builders for an async iterator lambda. But I don't like this because (1) it feels awkward, (2) it would preclude C# from ever having iterator lambdas in the future.
