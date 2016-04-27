@@ -2,6 +2,8 @@
 
 (There's already a discussion thread for this: https://github.com/dotnet/roslyn/issues/261)
 
+The way I've written this proposal is with a tiny language change which leaves almost everything up to the libraries. Even an `IAsyncEnumerable`-returning async iterator method is generated chiefly by the libraries. I'll start by writing the end-to-end experience of how users will experience, and then I'll get to the actual tiny language proposal.
+
 ## Explaining examples
 
 **Example1:** You can use `IAsyncEnumerable<T>` in much the same way as you use `IEnumerable<T>` today: it can be produced by async iterator methods which can use `await` as well as `yield`, and you consume it with `foreach (async ...)`. (Rationale: it would be too jarring not to have this similarity with `IEnumerable`.)
@@ -42,7 +44,7 @@ var cts = new CancellationTokenSource();
 foreach (async var x in GetStreamFactory().GetEnumerator(cts.Token)) { ... }
 ```
 
-**Example5:** There's a new contextual keyword `async` inside async iterator and async tasklike methods, similar to `this` and `base` except it refers to the current async *method instance*. We'll see later that this is a general-purpose technique needed for a variety of situations, but for now we'll just use it to get hold of the token that was passed to `GetEnumerator`.
+**Example5:** There's a new contextual keyword `async` inside async iterator and async tasklike methods, similar to `this` and `base` except it refers to the current async *method instance*. We'll see later that this is a general-purpose mechanism needed for a variety of async methods, but for now the library just uses the mechanism to let the async iterator get hold of the cancellation token that was passed to `GetEnumerator`.
 ```csharp
 // EXAMPLE 5:
 async IAsyncEnumerable<int> GetStreamAsync()
@@ -54,8 +56,9 @@ async IAsyncEnumerable<int> GetStreamAsync()
 }
 ```
 
-**Example6:** Everything is pattern-based.
+**Example6:** On the consumption side, everything is pattern-based. (Rationale: to support `ConfigureAwait` we need the option of a `MoveNextAsync` that returns an awaitable other than `Task`; and folks might prefer to avoid boxing for performance; and the current spec rules about `foreach` are a confusing mix of pattern and type).
 ```csharp
+// EXAMPLE 6:
 // foreach (T x in e) embedded_statement;
 
 // if e.GetEnumerator() binds, then it expands to
@@ -65,7 +68,7 @@ foreach (T x in e.GetEnumerator()) embedded_statement;
 {
     try {
         while (await e.MoveNextAsync()) {
-            var x = e.Current;
+            T x = e.Current;
             ...
         }
     }
@@ -73,27 +76,56 @@ foreach (T x in e.GetEnumerator()) embedded_statement;
         (e as IDisposable).Dispose();
     }
 }
-
 ```
 
+**Example7:** On the production side, again everything is pattern-based. Building upon the [ValueTask proposal](feature%20-%20arbitrary%20async%20returns.md), for an async method with return type `C`, it looks up a builder `CB` for that type, and the builder's responsible for handling the `await` operator, the `yield` statement, and the new `async` contextual keyword. (Rationale: we've already established that awaits are better handled by a builder rather than solely by the language; also, this will allow for `IObservable` and `IAsyncActionWithProgress`).
+```csharp
+// EXAMPLE 7:
+// async C f()
+// {
+//   var ct = async.CancellationToken;
+//   await Task.Delay(1, ct);
+//   yield 1;
+// }
+// expands to this:
 
-// EXPANDS TO THIS:
-
-// EXPANDS TO THIS:
+C f()
 {
-    var enumerator = GetStream(cts.Token)();
-    try {
-        while (await enumerator.MoveNextAsync()) {
-            var x = enumerator.Current;
-            ...
-        }
+   var sm = new fStateMachine();
+   sm.builder = CB.Create();
+   sm.builder.Start(ref sm);
+   return sm.Task;
+}
+
+struct fStateMachine()
+{
+  int state;
+  CB builder;
+  void MoveNext()
+  {
+    // "var ct = async.CancellationToken" expands to this:
+    var ct = builder.Async.CancellationToken;
+    
+    // "var x = await t" expands to this:
+    var awaiter = t.GetAwaiter();
+    if (!awaiter.IsCompleted)
+    {
+      builder.AwaitOnCompleted(ref awaiter, ref this);
+      return;
     }
-    finally {
-        ... // Dispose enumerator
-    }
+    label:
+    var x = awaiter.GetResult();
+    awaiter = default(...);
+    
+    // "yield e" expands to this:
+    sm.builder.YieldResult(e);
+    return;
+    label:
+    
+    // when the method exits:
+    sm.builder.SetResult();
+  }
 }
 ```
 
-```csharp
-// EXAMPLE 3: the standard IAsyncEnumerable and IAsyncEnumerator both offer ConfigureAwait methods
-// 
+
