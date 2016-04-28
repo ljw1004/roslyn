@@ -26,7 +26,7 @@ async IAsyncEnumerable<int> g() { yield 1; async.CancellationToken.ThrowIfCancel
 This looks and feels weird but has one saving grace: the meaning of an enumerator (stream) is that it can be consumed exactly once, so if you async-foreach over it once, then no one can ever foreach over it again, so it doesn't matter that async-foreach disposes of it.
 
 
-**Key issue: CancellationToken`.**. There is debate over the granularity of cancellation: (1) at the level of each *enumerable*, or (2) at the level of each *enumerator*, or (3) at the level of each *MoveNextAsync*.
+**Key issue: CancellationToken.**. There is debate over the granularity of cancellation: (1) at the level of each *enumerable*, or (2) at the level of each *enumerator*, or (3) at the level of each *MoveNextAsync*.
 
 The level of *enumerable* could be done by passing it to the original iterator method `g(cts.Token)` which works okay, but means that one cancellation will affect all subsequent streams. Or it could be done similar to LINQ `TakeWhile`, e.g. `foreach (async var x in g().WithCancellation(cts.Token))`, but it needs [Q5] a way for the body of the async iterator method to get hold of that token.
 
