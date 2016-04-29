@@ -16,7 +16,13 @@
 // Option3: via a dummy call to "var builder = default(Tasklike).GetBuilder();"
 public static class Extensions
 {
-	public static void GetBuilder(this MyTasklike dummy) => new BuilderType();
+    public static void GetBuilder(this MyTasklike dummy) => new BuilderType();
+}
+
+// Option4: via a static method on the tasklike
+class MyTasklike
+{
+   [EditorBrowsable(EditorBrowsableState.Never)] public static BuilderType GetBuilder();
 }
 ```
 Option2 has the slight benefit of being able to specify a builder even when you're returning the existing `Task`. But it's worse for the typical `ValueTask` usecase because it requires you to type out the attribute every single time you want to return `ValueTask`. It also doesn't work with lambdas, which don't have a place to hang that attribute.
@@ -24,6 +30,8 @@ Option2 has the slight benefit of being able to specify a builder even when you'
 Option3 is ugly. We could live with that ugliness if it was useful to extend third-party tasklike types, but experience is that the implementation of the builder and the tasklike are closely related, so closely that it's not feasible to build someone else's tasklike. So the ugliness isn't merited.
 
 Option3 has the slight advantage of not requiring `TasklikeAttribute` to be defined somewhere.
+
+Option4 is probably the most elegant. I should have gone with that instead of the attribute.
 
 
 ## Discuss: genericity of tasklike and builder
