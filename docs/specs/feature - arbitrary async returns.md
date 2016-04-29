@@ -66,6 +66,8 @@ The rules for [evaluation of task-returning async functions](https://github.com/
 
 The overload resolution rules for [better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member) currently say that if neither candidate is better, and also the two applicable candidates have identical parameter types `{P1...Pn}` and `{Q1...Qn}` then we use tie-breakers to determine which is the better one. With this feature, this will be modified so that if neither candidate is better and also the parameter types are identical *up to tasklikes* then use the tie-breakers: in other words, for purposes of this identity comparison, all non-generic `Tasklike`s are deemed identical to each other, and all generic `Tasklike<T>`s for a given `T` are deemed identical to each other.
 
+> For explanation of why the proposal is this way, and to see alternatives, please read the [Design rationale and alternatives](feature - arbitrary async returns - discussion.md).
+
 The rules for [anonymous function conversion](https://github.com/ljw1004/csharpspec/blob/gh-pages/conversions.md#anonymous-function-conversions) currently allow an async lambda to be converted to a delegate type whose return type is either `void` or `Task` or `Task<T>`; this will be changed to let them return `void` or any non-generic `Tasklike` or any generic `Tasklike<T>`.
 
 The [inferred return type](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#inferred-return-type) of a lambda expression currently takes into account the parameter types of the delegate to which the lambda is being converted. With this feature, the inferred return type of an async lambda now also takes into account the return type of that delegate:
@@ -75,8 +77,6 @@ The [inferred return type](https://github.com/ljw1004/csharpspec/blob/gh-pages/e
 * Otherwise, the async lambda has inferred *result type* `V1`:
   * if the return type of the delegate is `U<V2>` where `U` is a generic tasklike, then the inferred *return type* is `U<V1>`
   * otherwise the inferred *return type* is `Task<V2>`
-
-> For explanation of why the proposal is this way, and to see alternatives, please read the [Design rationale and alternatives](feature - arbitrary async returns - discussion.md).
 
 
 **Semantics for execution of an async method**
