@@ -192,7 +192,7 @@ Folks might decide to have user-defined implicit conversions between their taskl
 
 **Approach0:** We could just leave Example5 to give an ambiguous overload error, i.e. not do anything.
 
-This would be a shame. It would disallow some common patterns like `Task.Run`. Also, as discussed in Example2, you can't really write a single method `f<T>(Func<T> lambda)` which works right for both normal and async lambdas, so you really do have to provide the second overload, so Example5 is a common case.
+This would be a shame. It would disallow some common patterns like `Task.Run` from being used on any tasklikes other than `Task` itself. Also, as discussed in Example2, you can't really write a single method `f<T>(Func<T> lambda)` which works right for both normal and async lambdas, so you really do have to provide the second overload, so Example5 is a common case.
 
 I think that folks should be able to come up with their own parallel world of `MyTask` that looks and feels like `Task`, with the same level of compiler support.
 
