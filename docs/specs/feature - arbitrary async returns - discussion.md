@@ -205,7 +205,7 @@ I think that folks should be able to come up with their own parallel world of `M
 3. When overload resolution attempts to judge whether two parameter sequences `{P1...Pn}` and `{Q1...Qn}` are identical, it treats these pseudo-types as identical to themselves and all tasklikes of the same arity. This would allow it to go down the *more specific* tie-breaker route.
 4. If overload resolution picks a winning candidate with one of the pseudo-types, only then does the pseudo-type get collapsed down to the concrete type `Task` or `Task<T>`. 
 
-I struggled to make sense of this approach. Consider what is the principle behind this type inference? One possible principle is this: *when type inference succeeds and mentions one of the pseudo-types, it is a statement that **all tasklikes would be equally applicable in its place**. * But that's not really how type inference works in C#. Consider:
+I struggled to make sense of this approach. Consider what is the principle behind this type inference? One possible principle is this: **when type inference succeeds and mentions one of the pseudo-types, it means that all tasklikes would be equally applicable in its place**. But that's not really how type inference works in C#. Consider:
 ```csharp
 void f<T>(Func<T> lambda1, Func<T,T> lambda2)
 f( ()=>3, (x)=>x.ToString());
