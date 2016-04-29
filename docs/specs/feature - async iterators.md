@@ -12,8 +12,8 @@ But first, I want to address head-on the key design issues
 async IAsyncEnumerator<int> f() { yield 1; await t; }  // [Q1] can you produce an enumerator?
 async IAsyncEnumerable<int> g() { yield 1; await t; }  // [Q2] can you produce an enumerable?
 
-foreach (async var x in f()) { ... }  // [Q3] can you consume an enumerator?
-foreach (async var x in g()) { ... }  // [Q4] can you consume an enumerable?
+foreach (await var x in f()) { ... }  // [Q3] can you consume an enumerator?
+foreach (await var x in g()) { ... }  // [Q4] can you consume an enumerable?
 
 async IAsyncEnumerable<int> g() { yield 1; async.CancellationToken.ThrowIfCancellationRequested(); }
 // [Q5] do we need a novel language feature for the body of the async iterator to get hold of context?
