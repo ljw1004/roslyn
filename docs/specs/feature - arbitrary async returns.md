@@ -60,7 +60,7 @@ Define:
 * A *non-generic tasklike* is any non-generic type with the attribute `[System.Runtime.CompilerServices.Tasklike(typeof(...))]` on it, or the type `System.Threading.Tasks.Task`.
 * A *generic tasklike* is any generic type with arity 1 with the same attribute, or the type `System.Threading.Tasks.Task<T>`.
 
-The rules for [async functions](https://github.com/ljw1004/csharpspec/blob/gh-pages/classes.md#async-functions) currently allow an async method to return either `void` or `Task` or `Task<T>`; this will be changed to allow it to return either `void`, or any nong-generic `Tasklike`, or generic `Tasklike<T>`.
+The rules for [async functions](https://github.com/ljw1004/csharpspec/blob/gh-pages/classes.md#async-functions) currently allow an async method to return either `void` or `Task` or `Task<T>`; this will be changed to allow it to return either `void`, or any non-generic `Tasklike`, or generic `Tasklike<T>`.
 
 The rules for [evaluation of task-returning async functions](https://github.com/ljw1004/csharpspec/blob/gh-pages/classes.md#evaluation-of-a-task-returning-async-function) currently talk in general terms about "generating an instance of the returned task type" and "initially incomplete state" and "moved out of the incomplete state". These will be changed to spell out how that returned tasklike is constructed and how its state is transitioned, as detailed below.
 
