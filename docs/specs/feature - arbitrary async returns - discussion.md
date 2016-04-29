@@ -226,7 +226,7 @@ The next approach takes the second principle, and turns it into something simple
 
 ### Overload resolution approach 2
 
-**Approach2:** The whole point is that we want tasklikes to go down the "tie-breaker" path. So let's achieve that directly: if no candidate is better, then *when judging whether `{P1...Pn}` and `{Q1...Qn}` are identical, do so **up to tasklikes**. * This way we don't need to mess with pseudo-types.
+**Approach2:** The whole point is that we want tasklikes to go down the "tie-breaker" path. So let's achieve that directly: if no candidate is better, then ***when judging whether `{P1...Pn}` and `{Q1...Qn}` are identical, do so up to tasklikes.*** This way we don't need to mess with pseudo-types.
 
 This is the approach put forwards in the the feature proposal.
 
