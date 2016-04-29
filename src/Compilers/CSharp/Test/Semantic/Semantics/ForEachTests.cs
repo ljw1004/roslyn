@@ -58,7 +58,15 @@ class Program
     static async Task MainAsync()
     {
         IAsyncEnumerator<int> xx = null;
-        foreach (var x await in xx) { }
+        foreach (await var x in xx) { }
+
+        // IAsyncEnumerable<int> yy = null;
+        // foreach (await var y in yy) { }
+    }
+
+    interface IAsyncEnumerable<T>
+    {
+        IAsyncEnumerator<T> GetEnumerator();
     }
 
     interface IAsyncEnumerator<T> : IDisposable

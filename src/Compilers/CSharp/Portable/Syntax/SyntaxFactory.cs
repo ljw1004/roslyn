@@ -2560,7 +2560,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         /// <summary>Creates a new ForEach statement [this is a legacy API without the optional await token]</summary>
         public static ForEachStatementSyntax ForEachStatement(SyntaxToken forEachKeyword, SyntaxToken openParenToken, TypeSyntax type, SyntaxToken identifier, SyntaxToken inKeyword, ExpressionSyntax expression, SyntaxToken closeParenToken, StatementSyntax statement)
-            => ForEachStatement(forEachKeyword, openParenToken, type, identifier, default(SyntaxToken), inKeyword, expression, closeParenToken, statement);
+            => ForEachStatement(forEachKeyword, openParenToken, default(SyntaxToken), type, identifier, inKeyword, expression, closeParenToken, statement);
 
     }
 }

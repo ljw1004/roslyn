@@ -1867,15 +1867,15 @@
     <Field Name="OpenParenToken" Type="SyntaxToken">
       <Kind Name="OpenParenToken"/>
     </Field>
+    <Field Name="AwaitKeyword" Type="SyntaxToken" Optional="true" >
+      <Kind Name="AwaitKeyword"/>
+    </Field>
     <Field Name="Type" Type="TypeSyntax"/>
     <Field Name="Identifier" Type="SyntaxToken">
       <PropertyComment>
         <summary>Gets the identifier.</summary>
       </PropertyComment>
       <Kind Name="IdentifierToken"/>
-    </Field>
-    <Field Name="AwaitKeyword" Type="SyntaxToken" Optional="true" >
-      <Kind Name="AwaitKeyword"/>
     </Field>
     <Field Name="InKeyword" Type="SyntaxToken">
       <Kind Name="InKeyword"/>

@@ -9,7 +9,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Syntax
     public partial class ForEachStatementSyntax
     {
         public ForEachStatementSyntax Update(SyntaxToken forEachKeyword, SyntaxToken openParenToken, TypeSyntax type, SyntaxToken identifier, SyntaxToken inKeyword, ExpressionSyntax expression, SyntaxToken closeParenToken, StatementSyntax statement)
-            => Update(forEachKeyword, openParenToken, type, identifier, default(SyntaxToken), inKeyword, expression, closeParenToken, statement);
+            => Update(forEachKeyword, openParenToken, default(SyntaxToken), type, identifier, inKeyword, expression, closeParenToken, statement);
 
     }
 }

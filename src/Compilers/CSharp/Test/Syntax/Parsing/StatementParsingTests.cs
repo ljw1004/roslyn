@@ -1659,11 +1659,11 @@ namespace Microsoft.CodeAnalysis.CSharp.UnitTests
             Assert.Equal(SyntaxKind.ForEachKeyword, fs.ForEachKeyword.Kind());
 
             Assert.NotNull(fs.OpenParenToken);
+            Assert.Equal(SyntaxKind.None, fs.AwaitKeyword.Kind());
             Assert.NotNull(fs.Type);
             Assert.Equal("T", fs.Type.ToString());
             Assert.NotNull(fs.Identifier);
             Assert.Equal("a", fs.Identifier.ToString());
-            Assert.Equal(SyntaxKind.None, fs.AwaitKeyword.Kind());
             Assert.NotNull(fs.InKeyword);
             Assert.False(fs.InKeyword.IsMissing);
             Assert.Equal(SyntaxKind.InKeyword, fs.InKeyword.Kind());
@@ -1676,7 +1676,7 @@ namespace Microsoft.CodeAnalysis.CSharp.UnitTests
         [Fact]
         public void TestAsyncForEach()
         {
-            var text = "foreach(T a await in b) { }";
+            var text = "foreach(await T a in b) { }";
             var statement = this.ParseStatement(text);
 
             Assert.NotNull(statement);
@@ -1689,13 +1689,13 @@ namespace Microsoft.CodeAnalysis.CSharp.UnitTests
             Assert.Equal(SyntaxKind.ForEachKeyword, fs.ForEachKeyword.Kind());
 
             Assert.NotNull(fs.OpenParenToken);
+            Assert.NotNull(fs.AwaitKeyword);
+            Assert.False(fs.AwaitKeyword.IsMissing);
+            Assert.Equal(SyntaxKind.AwaitKeyword, fs.AwaitKeyword.Kind());
             Assert.NotNull(fs.Type);
             Assert.Equal("T", fs.Type.ToString());
             Assert.NotNull(fs.Identifier);
             Assert.Equal("a", fs.Identifier.ToString());
-            Assert.NotNull(fs.AwaitKeyword);
-            Assert.False(fs.AwaitKeyword.IsMissing);
-            Assert.Equal(SyntaxKind.AwaitKeyword, fs.AwaitKeyword.Kind());
             Assert.NotNull(fs.InKeyword);
             Assert.False(fs.InKeyword.IsMissing);
             Assert.Equal(SyntaxKind.InKeyword, fs.InKeyword.Kind());
