@@ -205,14 +205,14 @@ I think that folks should be able to come up with their own parallel world of `M
 3. When overload resolution attempts to judge whether two parameter sequences `{P1...Pn}` and `{Q1...Qn}` are identical, it treats these pseudo-types as identical to themselves and all tasklikes of the same arity. This would allow it to go down the *more specific* tie-breaker route.
 4. If overload resolution picks a winning candidate with one of the pseudo-types, only then does the pseudo-type get collapsed down to the concrete type `Task` or `Task<T>`. 
 
-I struggled to make sense of this approach. Consider what is the principle behind this type inference? One possible principle is this: **when type inference succeeds and mentions one of the pseudo-types, it means that all tasklikes would be equally applicable in its place**. But that's not really how type inference works in C#. Consider:
+I struggled to make sense of this approach. Consider what is the principle behind this type inference? One possible principle is this: ***when type inference succeeds and mentions one of the pseudo-types, it means that all tasklikes would be equally applicable in its place***. But that's not really how type inference works in C#. Consider:
 ```csharp
 void f<T>(Func<T> lambda1, Func<T,T> lambda2)
 f( ()=>3, (x)=>x.ToString());
 ```
 This will happily infer `T = int` and simply not bother checking whether this candidate for `T` makes sense for the second argument. In general, C# type inference doesn't guarantee that successful type inference will produce parameter types that are applicable to arguments. This is a weak foundation upon which to build "all tasklikes would be applicable".
 
-The opposite possible principle behind type inference is that *it should aggressively prefer to give type inference results that include the pseudo-types* rather than any particular concrete tasklikes. The rationale here is that the whole point of the pseudo-types is to encourage candidates to be treated equivalent up to tasklikeness that arises from async lambdas. But this principle doesn't feel very principled... (see Approach 2 below).
+The opposite possible principle behind type inference is that ***it should aggressively prefer to give type inference results that include the pseudo-types*** rather than any particular concrete tasklikes. The rationale here is that the whole point of the pseudo-types is to encourage candidates to be treated equivalent up to tasklikeness that arises from async lambdas. But this principle doesn't feel very principled... (see Approach 2 below).
 
 Next we'd have to decide how the chosen principle informs how the pseudo-types work with [Fixing](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#fixing). For instance, if a generic type parameter has lower bounds `InferredTask<int>` and `Task<int>` then what should it fix as? What if it has lower bounds `IEnumerable<InferredTask<int>>` and `IEnumerable<Task<int>>` and `IEnumerable<MyTask<int>>`?
 
