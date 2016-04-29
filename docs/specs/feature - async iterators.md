@@ -12,8 +12,8 @@ But first, I want to address head-on the key design issues
 async IAsyncEnumerator<int> f() { yield 1; await t; }  // [Q1] can you produce an enumerator?
 async IAsyncEnumerable<int> g() { yield 1; await t; }  // [Q2] can you produce an enumerable?
 
-foreach (async var x in f()) { ... }  // [Q3] can you consume an enumerator?
-foreach (async var x in g()) { ... }  // [Q4] can you consume an enumerable?
+foreach (await var x in f()) { ... }  // [Q3] can you consume an enumerator?
+foreach (await var x in g()) { ... }  // [Q4] can you consume an enumerable?
 
 async IAsyncEnumerable<int> g() { yield 1; async.CancellationToken.ThrowIfCancellationRequested(); }
 // [Q5] do we need a novel language feature for the body of the async iterator to get hold of context?
@@ -28,9 +28,9 @@ This looks and feels weird but has one saving grace: the meaning of an enumerato
 
 **Key issue: CancellationToken.** There is debate over the granularity of cancellation: (1) at the level of each *enumerable*, or (2) at the level of each *enumerator*, or (3) at the level of each *MoveNextAsync*.
 
-The level of *enumerable* could be done by passing it to the original iterator method `g(cts.Token)` which works okay, but means that one cancellation will affect all subsequent streams. Or it could be done similar to LINQ `TakeWhile`, e.g. `foreach (async var x in g().WithCancellation(cts.Token))`, but it needs [Q5] a way for the body of the async iterator method to get hold of that token.
+The level of *enumerable* could be done by passing it to the original iterator method `g(cts.Token)` which works okay, but means that one cancellation will affect all subsequent streams. Or it could be done similar to LINQ `TakeWhile`, e.g. `foreach (await var x in g().WithCancellation(cts.Token))`, but it needs [Q5] a way for the body of the async iterator method to get hold of that token.
 
-The level of *enumerator* feels just as clean as the `TakeWhile`. If only async enumerators can be produced, then enumerator-level cancellation is a fine and complete story. But if async enumerables can be produced, `foreach (async var x in g().GetEnumerator(cts.Token))`, then again it needs [Q5] a way to get hold of that token.
+The level of *enumerator* feels just as clean as the `TakeWhile`. If only async enumerators can be produced, then enumerator-level cancellation is a fine and complete story. But if async enumerables can be produced, `foreach (await var x in g().GetEnumerator(cts.Token))`, then again it needs [Q5] a way to get hold of that token.
 
 The level of *MoveNextAsync* doesn't work because it's too hard to write an async iterator method which has to deal with a potentially different token after every `yield`, and in any case there's no way in the async-foreach construct to provide a different token after each one.
 
@@ -46,7 +46,7 @@ The level of *MoveNextAsync* doesn't work because it's too hard to write an asyn
 
 * **Option2:** Async enumerables are foremost, and cancellation is at the level of enumerables. [Q1+Q2] you can produce enumerators and enumerables. [Q4] you can only consume enumerables. This option could be done either with or without [Q5] a way to get hold of the cancellation token from inside the body of the async enumerable iterator.
 
-* **Option3:** Enumerators and enumerables are both equally foremost, and cancellation is at the level of enumerators. [Q1+Q2] you can produce enumerators and enumerables. [Q3+Q4] you can consume enumerators and enumerables. [Q5] you need a way to get hold of the cancellation token from inside the body of an async enumerable iterator. (Key to this option is the *symmetry* of async-foreach: that's what allows you to either consume `foreach (async var x in GetStreamFactory())` or `foreach (async var x in GetStreamFactory().GetEnumerator(token))`, and not have to think about it.)
+* **Option3:** Enumerators and enumerables are both equally foremost, and cancellation is at the level of enumerators. [Q1+Q2] you can produce enumerators and enumerables. [Q3+Q4] you can consume enumerators and enumerables. [Q5] you need a way to get hold of the cancellation token from inside the body of an async enumerable iterator. (Key to this option is the *symmetry* of async-foreach: that's what allows you to either consume `foreach (await var x in GetStreamFactory())` or `foreach (await var x in GetStreamFactory().GetEnumerator(token))`, and not have to think about it.)
 
 In the rest of this proposal I'm going to write out a spec out all of [Q1+Q2+Q3+Q4+Q5]. It's obviously possible to strike out any part, depending on which design option is taken.
 
@@ -54,7 +54,7 @@ In the rest of this proposal I'm going to write out a spec out all of [Q1+Q2+Q3+
 
 ## Explaining examples
 
-**Example1:** You can use `IAsyncEnumerable<T>` in much the same way as you use `IEnumerable<T>` today: it can be produced by async iterator methods which can use `await` as well as `yield`, and you consume it with `foreach (async ...)`. (Rationale: it would be too jarring not to have this similarity with `IEnumerable`.)
+**Example1:** You can use `IAsyncEnumerable<T>` in much the same way as you use `IEnumerable<T>` today: it can be produced by async iterator methods which can use `await` as well as `yield`, and you consume it with `foreach (await ...)`. (Rationale: it would be too jarring not to have this similarity with `IEnumerable`.)
 ```csharp
 // EXAMPLE 1: this is the simple case of an IAsyncEnumerable
 async IAsyncEnumerable<int> GetStreamFactory()
@@ -65,31 +65,31 @@ async IAsyncEnumerable<int> GetStreamFactory()
    yield 2;
 }
 
-foreach (async var x in GetStreamFactory()) { ... }
+foreach (await var x in GetStreamFactory()) { ... }
 ```
 
-**Example2:** You can also use `IAsyncEnumerator<T>` similar to `IEnumerator<T>`: it can be produced with async iterator methods. What's new is that you can consume it with `foreach (async ...)` as well, while regular `IEnumerator`s can't be consumed in this way. (Rationale: streams, rather than stream factories, are much more common in the async world).
+**Example2:** You can also use `IAsyncEnumerator<T>` similar to `IEnumerator<T>`: it can be produced with async iterator methods. What's new is that you can consume it with `foreach (await ...)` as well, while regular `IEnumerator`s can't be consumed in this way. (Rationale: streams, rather than stream factories, are much more common in the async world).
 ```csharp
 // EXAMPLE 2: you can also consume IAsyncEnumerators, and you can produce them
 // This is a good opportunity to provide a cancellation token!
 async IAsyncEnumerator<int> GetStream(CancellationToken cancel) { ... }
 
 var cts = new CancellationTokenSource();
-foreach (async var x in GetStream(cts.Token)) { ... }
+foreach (await var x in GetStream(cts.Token)) { ... }
 ```
 
 **Example3:** You can use `.ConfigureAwait(false)` on the enumerable/enumerator itself. That's not a language feature: it's just part of the BCL definition of `IAsyncEnumerable` and `IAsyncEnumerator`.
 ```csharp
 // EXAMPLE 3: ConfigureAwait support
-foreach (async var x in GetStreamFactory().ConfigureAwait(false)) { ... }
-foreach (async var x in GetStream().ConfigureAwait(false)) { ... }
+foreach (await var x in GetStreamFactory().ConfigureAwait(false)) { ... }
+foreach (await var x in GetStream().ConfigureAwait(false)) { ... }
 ```
 
 **Example4:** One of the BCL `IAsyncEnumerable` features is its `GetEnumerator()` method takes an optional cancellation token. Again, this is part of the BCL and not a language feature.
 ```csharp
 // EXAMPLE 4: cancellation when consuming IAsyncEnumerable
 var cts = new CancellationTokenSource();
-foreach (async var x in GetStreamFactory().GetEnumerator(cts.Token)) { ... }
+foreach (await var x in GetStreamFactory().GetEnumerator(cts.Token)) { ... }
 ```
 
 **Example5:** There's a new contextual keyword `async` inside eligible async iterator and async tasklike methods, similar to `this` and `base` except it refers to the current async *method instance*. We'll see later that this is a general-purpose mechanism needed for a variety of async methods, but for now the library just uses the mechanism to let the async iterator get hold of the cancellation token that was passed to `GetEnumerator`.
@@ -107,7 +107,7 @@ async IAsyncEnumerable<int> GetStreamAsync()
 **Example6:** On the consumption side, everything is pattern-based. (Rationale: to support `ConfigureAwait` we need the option of a `MoveNextAsync` that returns an awaitable other than `Task`; and folks might prefer to avoid boxing for performance; and the current spec rules about `foreach` are a confusing mix of pattern and type).
 ```csharp
 // EXAMPLE 6:
-// foreach (T x in e) embedded_statement;
+// foreach (await T x in e) embedded_statement;
 
 // if e.GetEnumerator() binds, then it expands to
 foreach (T x in e.GetEnumerator()) embedded_statement;
