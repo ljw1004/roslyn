@@ -58,9 +58,9 @@ namespace Microsoft.CodeAnalysis.CSharp
         /// <summary>
         /// Lower a foreach loop that will enumerate a collection using an enumerator.
         /// 
-        /// E e = ((C)(x)).GetEnumerator()
+        /// E e = ((C)(x)).GetEnumerator()  ||   E e = ((E)(x))
         /// try {
-        ///     while (e.MoveNext()) {
+        ///     while (e.MoveNext() || await e.MoveNextAsync()) {
         ///         V v = (V)(T)e.Current;
         ///         // body
         ///     }
@@ -80,7 +80,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             BoundExpression rewrittenExpression = (BoundExpression)Visit(collectionExpression);
             BoundStatement rewrittenBody = (BoundStatement)Visit(node.Body);
 
-            TypeSymbol enumeratorType = enumeratorInfo.GetEnumeratorMethod.ReturnType;
+            TypeSymbol enumeratorType = enumeratorInfo.EnumeratorType;
             TypeSymbol elementType = enumeratorInfo.ElementType;
 
             // E e
@@ -89,10 +89,25 @@ namespace Microsoft.CodeAnalysis.CSharp
             // Reference to e.
             BoundLocal boundEnumeratorVar = MakeBoundLocal(forEachSyntax, enumeratorVar, enumeratorType);
 
-            // ((C)(x)).GetEnumerator() or (x).GetEnumerator();
-            BoundExpression enumeratorVarInitValue = SynthesizeCall(forEachSyntax, rewrittenExpression, enumeratorInfo.GetEnumeratorMethod, enumeratorInfo.CollectionConversion, enumeratorInfo.CollectionType);
+            BoundExpression enumeratorVarInitValue;
+            if ((object)enumeratorInfo.CollectionType != null)
+            {
+                // ((C)(x)).GetEnumerator() or (x).GetEnumerator();
+                enumeratorVarInitValue = SynthesizeCall(forEachSyntax, rewrittenExpression, enumeratorInfo.GetEnumeratorMethod, enumeratorInfo.CollectionConversion, enumeratorInfo.CollectionType);
+            }
+            else
+            {
+                // E e = ((E)(x))
+                enumeratorVarInitValue = MakeConversion(
+                    syntax: forEachSyntax,
+                    rewrittenOperand: rewrittenExpression,
+                    conversion: enumeratorInfo.EnumeratorConversion,
+                    rewrittenType: enumeratorType,
+                    @checked: node.Checked
+                    );
+            }
 
-            // E e = ((C)(x)).GetEnumerator();
+            // E e = ((C)(x)).GetEnumerator() || (x).GetEnumerator() || ((E)(x))
             BoundStatement enumeratorVarDecl = MakeLocalDeclaration(forEachSyntax, enumeratorVar, enumeratorVarInitValue);
 
             AddForEachExpressionSequencePoint(forEachSyntax, ref enumeratorVarDecl);
@@ -121,19 +136,39 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             AddForEachIterationVariableSequencePoint(forEachSyntax, ref iterationVarDecl);
 
-            // while (e.MoveNext()) {
+            // while (e.MoveNext() || await e.MoveNextAsync()) {
             //     V v = (V)(T)e.Current;
             //     /* node.Body */
             // }
 
             var rewrittenBodyBlock = CreateBlockDeclaringIterationVariable(iterationVar, iterationVarDecl, rewrittenBody, forEachSyntax);
 
-            BoundStatement whileLoop = RewriteWhileStatement(
-                syntax: forEachSyntax,
-                rewrittenCondition: BoundCall.Synthesized(
+            BoundExpression whileCondition = null;
+            if (node.IsAsync)
+            {
+                whileCondition = new BoundAwaitExpression(
+                    forEachSyntax,
+                    BoundCall.Synthesized(
+                        syntax: forEachSyntax,
+                        receiverOpt: boundEnumeratorVar,
+                        method: enumeratorInfo.MoveNextMethod
+                        ),
+                    enumeratorInfo.AsyncGetAwaiterMethod,
+                    enumeratorInfo.AsyncIsCompletedProperty,
+                    enumeratorInfo.AsyncGetResultMethod,
+                    enumeratorInfo.MoveNextResultType);
+            }
+            else
+            {
+                whileCondition = BoundCall.Synthesized(
                     syntax: forEachSyntax,
                     receiverOpt: boundEnumeratorVar,
-                    method: enumeratorInfo.MoveNextMethod),
+                    method: enumeratorInfo.MoveNextMethod);
+            }
+
+            BoundStatement whileLoop = RewriteWhileStatement(
+                syntax: forEachSyntax,
+                rewrittenCondition: whileCondition,
                 conditionSequencePointSpan: forEachSyntax.InKeyword.Span,
                 rewrittenBody: rewrittenBodyBlock,
                 breakLabel: node.BreakLabel,

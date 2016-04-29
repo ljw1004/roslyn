@@ -114,7 +114,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         /// Reports an error if the await expression did not occur in an async context.
         /// </summary>
         /// <returns>True if the expression contains errors.</returns>
-        private bool ReportBadAwaitWithoutAsync(CSharpSyntaxNode node, DiagnosticBag diagnostics)
+        protected bool ReportBadAwaitWithoutAsync(CSharpSyntaxNode node, DiagnosticBag diagnostics)
         {
             DiagnosticInfo info = null;
             var containingMemberOrLambda = this.ContainingMemberOrLambda;
@@ -169,7 +169,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         /// Report diagnostics if the await expression occurs in a context where it is not allowed.
         /// </summary>
         /// <returns>True if errors were found.</returns>
-        private bool ReportBadAwaitContext(CSharpSyntaxNode node, DiagnosticBag diagnostics)
+        protected bool ReportBadAwaitContext(CSharpSyntaxNode node, DiagnosticBag diagnostics)
         {
             if (this.InUnsafeRegion && !this.Flags.Includes(BinderFlags.AllowAwaitInUnsafeContext))
             {

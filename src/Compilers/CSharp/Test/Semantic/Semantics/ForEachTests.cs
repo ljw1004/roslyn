@@ -28,8 +28,8 @@ class Program
 {
     static void Main()
     {
-        IAsyncEnumerator<int> xx = null
-        foreach (var x await in xx) { }
+        IAsyncEnumerator<int> xx = null;
+        foreach (await var x in xx) { }
     }
 
     interface IAsyncEnumerator<T> : IDisposable
@@ -40,15 +40,16 @@ class Program
 }
 ";
             CreateCompilationWithMscorlib45(text).VerifyDiagnostics(
-                // (8,9): error CS4033: The 'await' operator can only be used within an async method. Consider marking this method with the 'async' modifier and changing its return type to 'Task'.
-                Diagnostic(ErrorCode.ERR_BadAwaitWithoutVoidAsyncMethod, "await Task.Factory.StartNew(() => { })")
+                // (10,9): error CS4033: The 'await' operator can only be used within an async method. Consider marking this method with the 'async' modifier and changing its return type to 'Task'.
+                //         foreach (await var x in xx) { }
+                Diagnostic(ErrorCode.ERR_BadAwaitWithoutVoidAsyncMethod, "foreach (await var x in xx) { }").WithLocation(10, 9)
                 );
         }
 
         [Fact]
         public void TestBindAsyncEnumerator()
         {
-            var text = @"
+            var text1 = @"
 using System;
 using System.Threading.Tasks;
 
@@ -57,8 +58,8 @@ class Program
     static void Main() { }
     static async Task MainAsync()
     {
-        //IAsyncEnumerator<int> xx = null;
-        //foreach (await var x in xx) { }
+        IAsyncEnumerator<int> xx = null;
+        foreach (await var x in xx) { }
 
         IAsyncEnumerable<int> yy = null;
         foreach (await var y in yy) { }
@@ -76,10 +77,41 @@ class Program
     }
 }
 ";
-            CreateCompilationWithMscorlib45(text).VerifyDiagnostics(
-                // (8,23): warning CS1998: This async method lacks 'await' operators and will run synchronously. Consider using the 'await' operator to await non-blocking API calls, or 'await Task.Run(...)' to do CPU-bound work on a background thread.
-                //     static async Task MainAsync()
-                Diagnostic(ErrorCode.WRN_AsyncLacksAwaits, "MainAsync").WithLocation(8, 23)
+            CreateCompilationWithMscorlib45(text1).VerifyDiagnostics(
+                );
+
+
+            var text2 = @"
+using System;
+using System.Threading.Tasks;
+
+class Program
+{
+    static void Main() { MainAsync().GetAwaiter().GetResult(); }
+    static async Task MainAsync()
+    {
+        var xx = new AsyncEnumerator();
+        foreach (await var x in xx) Console.Write(x);
+
+        var yy = new AsyncEnumerable();
+        foreach (await var y in yy) Console.Write(y);
+    }
+
+    class AsyncEnumerable
+    {
+        public AsyncEnumerator GetEnumerator() => new AsyncEnumerator();
+    }
+
+    class AsyncEnumerator : IDisposable
+    {
+        public int Current { get; set; }
+        public void Dispose() { }
+        public async Task<bool> MoveNextAsync() { await Task.Delay(0); return ++Current < 4; }
+    }
+}
+";
+
+            CreateCompilationWithMscorlib45(text2).VerifyDiagnostics(
                 );
         }
 

@@ -2019,11 +2019,17 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         public override BoundNode VisitForEachStatement(BoundForEachStatement node)
         {
-            // foreach ( var v in node.Expression ) { node.Body; node.ContinueLabel: } node.BreakLabel:
+            // foreach ( await? var v in node.Expression ) { node.Body; node.ContinueLabel: } node.BreakLabel:
             VisitRvalue(node.Expression);
             var breakState = this.State.Clone();
             LoopHead(node);
             VisitForEachIterationVariable(node);
+
+            if (node.IsAsync)
+            {
+                _pendingBranches.Add(new PendingBranch(node, this.State.Clone()));
+            }
+
             VisitStatement(node.Body);
             ResolveContinues(node.ContinueLabel);
             LoopTail(node);

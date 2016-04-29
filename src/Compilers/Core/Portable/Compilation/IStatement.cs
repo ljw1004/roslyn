@@ -269,6 +269,10 @@ namespace Microsoft.CodeAnalysis.Semantics
         /// Collection value over which the loop iterates.
         /// </summary>
         IOperation Collection { get; }
+        /// <summary>
+        /// Is the foreach an async-foreach?
+        /// </summary>
+        bool IsAsync { get; }
     }
 
     /// <summary>

@@ -786,6 +786,12 @@ Namespace Microsoft.CodeAnalysis.VisualBasic
             End Get
         End Property
 
+        Public ReadOnly Property IsAsync As Boolean Implements IForEachLoopStatement.IsAsync
+            Get
+                Return False ' ASYNCITERATOR - must implement this feature in VB too!
+            End Get
+        End Property
+
         Protected Overrides Function StatementKind() As OperationKind
             Return OperationKind.LoopStatement
         End Function

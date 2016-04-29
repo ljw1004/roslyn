@@ -63,9 +63,10 @@ namespace Microsoft.CodeAnalysis.CSharp
         private BoundForEachStatement BindForEachPartsWorker(DiagnosticBag diagnostics, Binder originalBinder)
         {
             BoundExpression collectionExpr = this.Next.BindValue(_syntax.Expression, diagnostics, BindValueKind.RValue); //bind with next to avoid seeing iteration variable
+            bool isAsync = (_syntax.AwaitKeyword.Kind() != SyntaxKind.None);
 
             ForEachEnumeratorInfo.Builder builder = new ForEachEnumeratorInfo.Builder();
-            builder.IsAsync = (_syntax.AwaitKeyword.Kind() != SyntaxKind.None);
+            builder.IsAsync = isAsync;
             TypeSymbol inferredType;
             bool hasErrors = !GetEnumeratorInfoAndInferCollectionElementType(ref builder, ref collectionExpr, diagnostics, out inferredType);
 
@@ -119,6 +120,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     collectionExpr,
                     body,
                     CheckOverflowAtRuntime,
+                    isAsync,
                     this.BreakLabel,
                     this.ContinueLabel,
                     hasErrors);
@@ -221,6 +223,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 convertedCollectionExpression,
                 body,
                 CheckOverflowAtRuntime,
+                isAsync,
                 this.BreakLabel,
                 this.ContinueLabel,
                 hasErrors);
@@ -370,6 +373,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 builder.GetEnumeratorMethod = (MethodSymbol)GetSpecialTypeMember(SpecialMember.System_Collections_IEnumerable__GetEnumerator, diagnostics, _syntax);
                 builder.CurrentPropertyGetter = (MethodSymbol)GetSpecialTypeMember(SpecialMember.System_Collections_IEnumerator__get_Current, diagnostics, _syntax);
                 builder.MoveNextMethod = (MethodSymbol)GetSpecialTypeMember(SpecialMember.System_Collections_IEnumerator__MoveNext, diagnostics, _syntax);
+                builder.MoveNextResultType = builder.MoveNextMethod?.ReturnType;
 
                 builder.EnumeratorType = builder.GetEnumeratorMethod?.ReturnType;
                 Debug.Assert((object)builder.GetEnumeratorMethod == null ||
@@ -457,6 +461,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     }
 
                     builder.MoveNextMethod = (MethodSymbol)GetSpecialTypeMember(SpecialMember.System_Collections_IEnumerator__MoveNext, diagnostics, errorLocationSyntax); // NOTE: MoveNext is actually inherited from System.Collections.IEnumerator
+                    builder.MoveNextResultType = builder.MoveNextMethod?.ReturnType;
                 }
                 else
                 {
@@ -467,6 +472,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     builder.GetEnumeratorMethod = (MethodSymbol)GetSpecialTypeMember(SpecialMember.System_Collections_IEnumerable__GetEnumerator, diagnostics, errorLocationSyntax);
                     builder.CurrentPropertyGetter = (MethodSymbol)GetSpecialTypeMember(SpecialMember.System_Collections_IEnumerator__get_Current, diagnostics, errorLocationSyntax);
                     builder.MoveNextMethod = (MethodSymbol)GetSpecialTypeMember(SpecialMember.System_Collections_IEnumerator__MoveNext, diagnostics, errorLocationSyntax);
+                    builder.MoveNextResultType = builder.MoveNextMethod?.ReturnType;
 
                     builder.EnumeratorType = builder.GetEnumeratorMethod?.ReturnType;
                     Debug.Assert((object)builder.GetEnumeratorMethod == null ||
@@ -751,18 +757,20 @@ namespace Microsoft.CodeAnalysis.CSharp
                 }
                 else if (builder.IsAsync)
                 {
-                    var fakeDiagnostics = DiagnosticBag.GetInstance();
-                    MethodSymbol getAwaiter, getResult;
-                    PropertySymbol isCompleted;
                     TypeSymbol moveNextReturnType = ((MethodSymbol)moveNextMethodCandidate).ReturnType;
                     var dummyExpression = new BoundDefaultOperator(_syntax, moveNextReturnType);
-                    bool isAwaitable = GetAwaitableExpressionInfo(dummyExpression, out getAwaiter, out isCompleted, out getResult, _syntax, fakeDiagnostics);
+                    var fakeDiagnostics = DiagnosticBag.GetInstance(); // using fake diagnostics to suppress errors about "null"
+                    bool hasErrors = ReportBadAwaitWithoutAsync(_syntax, diagnostics) |
+                                     ReportBadAwaitContext(_syntax, diagnostics) |
+                                     !GetAwaitableExpressionInfo(dummyExpression, out builder.AsyncGetAwaiterMethod, out builder.AsyncIsCompletedProperty, out builder.AsyncGetResultMethod, _syntax, fakeDiagnostics);
                     fakeDiagnostics.Free();
 
-                    if (!isAwaitable) return false;
+                    if (hasErrors) return true;
+                    // ASYNCITERATOR: in the case of a dynamic foreach, GetResult method will be null.
                 }
 
                 builder.MoveNextMethod = moveNextMethodCandidate;
+                builder.MoveNextResultType = builder.IsAsync ? builder.AsyncGetResultMethod.ReturnType : builder.MoveNextMethod.ReturnType;
 
                 return true;
             }

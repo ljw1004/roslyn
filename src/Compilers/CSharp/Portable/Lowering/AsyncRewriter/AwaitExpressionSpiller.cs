@@ -248,7 +248,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
                 var syntax = awaitExpression.Syntax;
 
-                Debug.Assert(syntax.IsKind(SyntaxKind.AwaitExpression));
+                Debug.Assert(syntax.IsKind(SyntaxKind.AwaitExpression) || syntax.IsKind(SyntaxKind.ForEachStatement));
                 _F.Syntax = syntax;
 
                 BoundAssignmentOperator assignToTemp;

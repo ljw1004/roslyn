@@ -402,6 +402,43 @@ o");
         }
 
         [Fact]
+        public void TestForEachAsyncPattern()
+        {
+            var source = @"
+using System;
+using System.Threading.Tasks;
+
+class Program
+{
+    static void Main() { MainAsync().GetAwaiter().GetResult(); }
+    static async Task MainAsync()
+    {
+        var xx = new AsyncEnumerator();
+        foreach (await var x in xx) Console.Write(x);
+
+        var yy = new AsyncEnumerable();
+        foreach (await var y in yy) Console.Write(y);
+    }
+
+    class AsyncEnumerable
+    {
+        public AsyncEnumerator GetEnumerator() => new AsyncEnumerator();
+    }
+
+    class AsyncEnumerator : IDisposable
+    {
+        public int Current { get; set; }
+        public void Dispose() { }
+        public async Task<bool> MoveNextAsync() { await Task.Delay(0); return ++Current < 4; }
+    }
+}";
+            var compilation = CompileAndVerify(source, additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: @"123123");
+
+        }
+
+
+
+        [Fact]
         public void TestForEachPattern()
         {
             var source = @"

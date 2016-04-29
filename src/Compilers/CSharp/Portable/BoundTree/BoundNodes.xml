@@ -747,6 +747,7 @@
     <Field Name="Body" Type="BoundStatement"/>
   
     <Field Name="Checked" Type="Boolean"/>
+    <Field Name="IsAsync" Type="Boolean"/>
   </Node>
 
   <Node Name="BoundUsingStatement" Base="BoundStatement">

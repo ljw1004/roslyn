@@ -231,7 +231,12 @@ namespace Microsoft.CodeAnalysis.CSharp
                 currentMethodOrLambda.IsAsync &&
                 !currentMethodOrLambda.IsImplicitlyDeclared)
             {
-                var foundAwait = result.Any(pending => pending.Branch != null && pending.Branch.Kind == BoundKind.AwaitExpression);
+                var foundAwait = result.Any(pending => {
+                    if (pending.Branch == null) return false;
+                    if (pending.Branch.Kind == BoundKind.AwaitExpression) return true;
+                    if (pending.Branch.Kind == BoundKind.ForEachStatement && ((BoundForEachStatement)(pending.Branch)).IsAsync) return true;
+                    return false;
+                });
                 if (!foundAwait)
                 {
                     Diagnostics.Add(ErrorCode.WRN_AsyncLacksAwaits, currentMethodOrLambda.Locations[0]);
