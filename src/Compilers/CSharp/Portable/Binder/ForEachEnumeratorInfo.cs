@@ -14,18 +14,21 @@ namespace Microsoft.CodeAnalysis.CSharp
     internal sealed class ForEachEnumeratorInfo
     {
         // Types identified by the algorithm in the spec (8.8.4).
-        public readonly TypeSymbol CollectionType;
-        // public readonly TypeSymbol EnumeratorType; // redundant - return type of GetEnumeratorMethod
+        public readonly TypeSymbol CollectionType; // absent for "foreach" over enumerator
+        public readonly TypeSymbol EnumeratorType; // for enumerables, this is identical to return type of GetEnumeratorMethod
         public readonly TypeSymbol ElementType;
 
         // Members required by the "pattern" based approach.  Also populated for other approaches.
-        public readonly MethodSymbol GetEnumeratorMethod;
+        public readonly MethodSymbol GetEnumeratorMethod;    // absent for "foreach" over enumerator
         public readonly MethodSymbol CurrentPropertyGetter;
-        public readonly MethodSymbol MoveNextMethod;
+        public readonly MethodSymbol MoveNextMethod;         // is MoveNextAsync in case of async-foreach
 
         // Dispose method to be called on the enumerator (may be null).
         // Computed during initial binding so that we can expose it in the semantic model.
         public readonly bool NeedsDisposeMethod;
+
+        // Says whether this is an async foreach
+        public readonly bool IsAsync;
 
         // Conversions that will be required when the foreach is lowered.
         public readonly Conversion CollectionConversion; //collection expression to collection type
@@ -37,7 +40,9 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private ForEachEnumeratorInfo(
             TypeSymbol collectionType,
+            TypeSymbol enumeratorType,
             TypeSymbol elementType,
+            bool isAsync,
             MethodSymbol getEnumeratorMethod,
             MethodSymbol currentPropertyGetter,
             MethodSymbol moveNextMethod,
@@ -47,14 +52,18 @@ namespace Microsoft.CodeAnalysis.CSharp
             Conversion enumeratorConversion,
             BinderFlags location)
         {
-            Debug.Assert((object)collectionType != null, "Field 'collectionType' cannot be null");
+            Debug.Assert(isAsync || (object)collectionType != null, "Field 'collectionType' can only be null in an async foreach");
+            Debug.Assert((object)enumeratorType != null, "Field 'enumeratorType' cannot be null");
             Debug.Assert((object)elementType != null, "Field 'elementType' cannot be null");
-            Debug.Assert((object)getEnumeratorMethod != null, "Field 'getEnumeratorMethod' cannot be null");
+            Debug.Assert(((object)collectionType == null) == ((object)getEnumeratorMethod == null), "Field 'getEnumeratorMethod' can be null if and only if 'collectionType' is null");
+            Debug.Assert((object)getEnumeratorMethod == null || getEnumeratorMethod.ReturnType == enumeratorType, "If field 'getEnumerator' is present, its return type must be identical to 'enumeratorType'");
             Debug.Assert((object)currentPropertyGetter != null, "Field 'currentPropertyGetter' cannot be null");
             Debug.Assert((object)moveNextMethod != null, "Field 'moveNextMethod' cannot be null");
 
             this.CollectionType = collectionType;
+            this.EnumeratorType = enumeratorType;
             this.ElementType = elementType;
+            this.IsAsync = isAsync;
             this.GetEnumeratorMethod = getEnumeratorMethod;
             this.CurrentPropertyGetter = currentPropertyGetter;
             this.MoveNextMethod = moveNextMethod;
@@ -69,7 +78,10 @@ namespace Microsoft.CodeAnalysis.CSharp
         internal struct Builder
         {
             public TypeSymbol CollectionType;
+            public TypeSymbol EnumeratorType;
             public TypeSymbol ElementType;
+
+            public bool IsAsync;
 
             public MethodSymbol GetEnumeratorMethod;
             public MethodSymbol CurrentPropertyGetter;
@@ -85,7 +97,9 @@ namespace Microsoft.CodeAnalysis.CSharp
             {
                 return new ForEachEnumeratorInfo(
                     CollectionType,
+                    EnumeratorType,
                     ElementType,
+                    IsAsync,
                     GetEnumeratorMethod,
                     CurrentPropertyGetter,
                     MoveNextMethod,

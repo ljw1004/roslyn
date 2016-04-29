@@ -1663,6 +1663,7 @@ namespace Microsoft.CodeAnalysis.CSharp.UnitTests
             Assert.Equal("T", fs.Type.ToString());
             Assert.NotNull(fs.Identifier);
             Assert.Equal("a", fs.Identifier.ToString());
+            Assert.Equal(SyntaxKind.None, fs.AwaitKeyword.Kind());
             Assert.NotNull(fs.InKeyword);
             Assert.False(fs.InKeyword.IsMissing);
             Assert.Equal(SyntaxKind.InKeyword, fs.InKeyword.Kind());
@@ -1671,6 +1672,40 @@ namespace Microsoft.CodeAnalysis.CSharp.UnitTests
             Assert.NotNull(fs.CloseParenToken);
             Assert.NotNull(fs.Statement);
         }
+
+        [Fact]
+        public void TestAsyncForEach()
+        {
+            var text = "foreach(T a await in b) { }";
+            var statement = this.ParseStatement(text);
+
+            Assert.NotNull(statement);
+            Assert.Equal(SyntaxKind.ForEachStatement, statement.Kind());
+            Assert.Equal(text, statement.ToString());
+            Assert.Equal(0, statement.Errors().Length);
+
+            var fs = (ForEachStatementSyntax)statement;
+            Assert.NotNull(fs.ForEachKeyword);
+            Assert.Equal(SyntaxKind.ForEachKeyword, fs.ForEachKeyword.Kind());
+
+            Assert.NotNull(fs.OpenParenToken);
+            Assert.NotNull(fs.Type);
+            Assert.Equal("T", fs.Type.ToString());
+            Assert.NotNull(fs.Identifier);
+            Assert.Equal("a", fs.Identifier.ToString());
+            Assert.NotNull(fs.AwaitKeyword);
+            Assert.False(fs.AwaitKeyword.IsMissing);
+            Assert.Equal(SyntaxKind.AwaitKeyword, fs.AwaitKeyword.Kind());
+            Assert.NotNull(fs.InKeyword);
+            Assert.False(fs.InKeyword.IsMissing);
+            Assert.Equal(SyntaxKind.InKeyword, fs.InKeyword.Kind());
+            Assert.NotNull(fs.Expression);
+            Assert.Equal("b", fs.Expression.ToString());
+            Assert.NotNull(fs.CloseParenToken);
+            Assert.NotNull(fs.Statement);
+        }
+
+
 
         [Fact]
         public void TestForAsForEach()

@@ -259,6 +259,11 @@ namespace Microsoft.CodeAnalysis
         public const string MoveNextMethodName = "MoveNext";
 
         /// <summary>
+        /// The required name for the <c>MoveNextAsync</c> method used in an async ForEach statement.
+        /// </summary>
+        public const string MoveNextAsyncMethodName = "MoveNextAsync";
+
+        /// <summary>
         /// The required name for the <c>Current</c> property used in a ForEach statement.
         /// </summary>
         public const string CurrentPropertyName = "Current";

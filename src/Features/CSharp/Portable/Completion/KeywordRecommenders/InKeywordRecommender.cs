@@ -29,6 +29,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Completion.KeywordRecommenders
             // cases:
             //   foreach (var v |
             //   foreach (var v i|
+            // ASYNCITERATOR: also "foreach (var v await |" and "foreach (var v await i|"
 
             var token = context.TargetToken;
 

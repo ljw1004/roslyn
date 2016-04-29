@@ -17,6 +17,8 @@ namespace Microsoft.CodeAnalysis.CSharp.Completion.KeywordRecommenders
 
         protected override bool IsValidContext(int position, CSharpSyntaxContext context, CancellationToken cancellationToken)
         {
+            // ASYNCITERATOR: also "foreach (var v |" and "foreach (var v awai |"
+
             if (context.IsGlobalStatementContext)
             {
                 return true;

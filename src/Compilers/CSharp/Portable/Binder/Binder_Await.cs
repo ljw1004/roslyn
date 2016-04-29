@@ -208,7 +208,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         /// Finds and validates the required members of an awaitable expression, as described in spec 7.7.7.1.
         /// </summary>
         /// <returns>True if the expression is awaitable; false otherwise.</returns>
-        private bool GetAwaitableExpressionInfo(
+        protected bool GetAwaitableExpressionInfo(
             BoundExpression expression,
             out MethodSymbol getAwaiter,
             out PropertySymbol isCompleted,

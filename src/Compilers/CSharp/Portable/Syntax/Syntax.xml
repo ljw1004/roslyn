@@ -1874,6 +1874,9 @@
       </PropertyComment>
       <Kind Name="IdentifierToken"/>
     </Field>
+    <Field Name="AwaitKeyword" Type="SyntaxToken" Optional="true" >
+      <Kind Name="AwaitKeyword"/>
+    </Field>
     <Field Name="InKeyword" Type="SyntaxToken">
       <Kind Name="InKeyword"/>
     </Field>

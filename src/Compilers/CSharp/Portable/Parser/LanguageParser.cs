@@ -7549,7 +7549,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Syntax.InternalSyntax
             Debug.Assert(this.CurrentToken.Kind == SyntaxKind.ForEachKeyword || this.CurrentToken.Kind == SyntaxKind.ForKeyword);
 
             // Syntax for foreach is:
-            //  foreach ( <type> <identifier> in <expr> ) <embedded-statement>
+            //  foreach ( <type> <identifier> await? in <expr> ) <embedded-statement>
 
             SyntaxToken @foreach;
 
@@ -7579,12 +7579,18 @@ namespace Microsoft.CodeAnalysis.CSharp.Syntax.InternalSyntax
                 name = this.ParseIdentifierToken();
             }
 
+            SyntaxToken @await = default(SyntaxToken);
+            if (this.PeekToken(0).ContextualKind == SyntaxKind.AwaitKeyword)
+            {
+                @await = this.EatToken();
+                @await = SyntaxFactory.Token(@await.GetLeadingTrivia(), @await.ContextualKind, @await.Text, @await.ValueText, @await.GetTrailingTrivia());
+            }
             var @in = this.EatToken(SyntaxKind.InKeyword, ErrorCode.ERR_InExpected);
             var expression = this.ParseExpressionCore();
             var closeParen = this.EatToken(SyntaxKind.CloseParenToken);
             var statement = this.ParseEmbeddedStatement(true);
 
-            return _syntaxFactory.ForEachStatement(@foreach, openParen, type, name, @in, expression, closeParen, statement);
+            return _syntaxFactory.ForEachStatement(@foreach, openParen, type, name, @await, @in, expression, closeParen, statement);
         }
 
         private GotoStatementSyntax ParseGotoStatement()

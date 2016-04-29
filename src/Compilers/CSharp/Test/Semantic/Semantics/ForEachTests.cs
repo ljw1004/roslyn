@@ -16,6 +16,62 @@ namespace Microsoft.CodeAnalysis.CSharp.UnitTests
     /// </summary>
     public class ForEachTests : CompilingTestBase
     {
+
+        [Fact]
+        public void TestAsyncForeachInSyncContext()
+        {
+            var text = @"
+using System;
+using System.Threading.Tasks;
+
+class Program
+{
+    static void Main()
+    {
+        IAsyncEnumerator<int> xx = null
+        foreach (var x await in xx) { }
+    }
+
+    interface IAsyncEnumerator<T> : IDisposable
+    {
+        Task<bool> MoveNextAsync();
+        T Current { get; }
+    }
+}
+";
+            CreateCompilationWithMscorlib45(text).VerifyDiagnostics(
+                // (8,9): error CS4033: The 'await' operator can only be used within an async method. Consider marking this method with the 'async' modifier and changing its return type to 'Task'.
+                Diagnostic(ErrorCode.ERR_BadAwaitWithoutVoidAsyncMethod, "await Task.Factory.StartNew(() => { })")
+                );
+        }
+
+        [Fact]
+        public void TestBindAsyncEnumerator()
+        {
+            var text = @"
+using System;
+using System.Threading.Tasks;
+
+class Program
+{
+    static void Main() { }
+    static async Task MainAsync()
+    {
+        IAsyncEnumerator<int> xx = null;
+        foreach (var x await in xx) { }
+    }
+
+    interface IAsyncEnumerator<T> : IDisposable
+    {
+        Task<bool> MoveNextAsync();
+        T Current { get; }
+    }
+}
+";
+            CreateCompilationWithMscorlib45(text).VerifyDiagnostics(
+                );
+        }
+
         [Fact]
         public void TestErrorBadElementType()
         {
