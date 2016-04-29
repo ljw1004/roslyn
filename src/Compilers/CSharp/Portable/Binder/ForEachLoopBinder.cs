@@ -163,11 +163,18 @@ namespace Microsoft.CodeAnalysis.CSharp
             // Spec (§8.8.4):
             // If the type X of expression is dynamic then there is an implicit conversion from >>expression<< (not the type of the expression) 
             // to the System.Collections.IEnumerable interface (§6.1.8). 
-            // ASYNCITERATOR collection might not exist
-            builder.CollectionConversion = this.Conversions.ClassifyConversionFromExpression(collectionExpr, builder.CollectionType, ref useSiteDiagnostics);
-            builder.CurrentConversion = this.Conversions.ClassifyConversion(builder.CurrentPropertyGetter.ReturnType, builder.ElementType, ref useSiteDiagnostics);
+            // ASYNCITERATOR ??? I don't know what it's doing with System.Object here
+            if ((object)builder.CollectionType == null)
+            {
+                builder.EnumeratorConversion = this.Conversions.ClassifyConversionFromExpression(collectionExpr, builder.EnumeratorType, ref useSiteDiagnostics);
+            }
+            else
+            {
+                builder.CollectionConversion = this.Conversions.ClassifyConversionFromExpression(collectionExpr, builder.CollectionType, ref useSiteDiagnostics);
+                builder.EnumeratorConversion = this.Conversions.ClassifyConversion(builder.GetEnumeratorMethod.ReturnType, GetSpecialType(SpecialType.System_Object, diagnostics, _syntax), ref useSiteDiagnostics);
+            }
 
-            builder.EnumeratorConversion = this.Conversions.ClassifyConversion(builder.GetEnumeratorMethod.ReturnType, GetSpecialType(SpecialType.System_Object, diagnostics, _syntax), ref useSiteDiagnostics);
+            builder.CurrentConversion = this.Conversions.ClassifyConversion(builder.CurrentPropertyGetter.ReturnType, builder.ElementType, ref useSiteDiagnostics);
 
             diagnostics.Add(_syntax.ForEachKeyword.GetLocation(), useSiteDiagnostics);
 
@@ -177,7 +184,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             // Nullable<Error>, the current conversion will fail because we don't know if an ErrorType is a
             // value type.  This doesn't matter in practice, since we won't actually use the enumerator pattern 
             // when we lower the loop.
-            Debug.Assert(builder.CollectionConversion.IsValid);
+            Debug.Assert((object)builder.CollectionType == null || builder.CollectionConversion.IsValid);
             Debug.Assert(builder.CurrentConversion.IsValid ||
                 (builder.ElementType.IsPointerType() && collectionExpr.Type.IsArray()) ||
                 (builder.ElementType.IsNullableType() && builder.ElementType.GetMemberTypeArgumentsNoUseSiteDiagnostics().Single().IsErrorType() && collectionExpr.Type.IsArray()));
@@ -187,7 +194,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 "Conversions to object succeed unless there's a problem with the object type or the source type");
 
             // If user-defined conversions could occur here, we would need to check for ObsoleteAttribute.
-            Debug.Assert((object)builder.CollectionConversion.Method == null,
+            Debug.Assert((object)builder.CollectionType == null || (object)builder.CollectionConversion.Method == null,
                 "Conversion from collection expression to collection type should not be user-defined");
             Debug.Assert((object)builder.CurrentConversion.Method == null,
                 "Conversion from Current property type to element type should not be user-defined");
@@ -195,15 +202,15 @@ namespace Microsoft.CodeAnalysis.CSharp
                 "Conversion from GetEnumerator return type to System.Object should not be user-defined");
 
             // We're wrapping the collection expression in a (non-synthesized) conversion so that its converted
-            // type (i.e. builder.CollectionType) will be available in the binding API.
+            // type (i.e. builder.CollectionType for an enumerable, builder.EnumeratorType for an enumerator) will be available in the binding API.
             BoundConversion convertedCollectionExpression = new BoundConversion(
                 collectionExpr.Syntax,
                 collectionExpr,
-                builder.CollectionConversion,
+                ((object)builder.CollectionType == null) ? builder.EnumeratorConversion : builder.CollectionConversion,
                 CheckOverflowAtRuntime,
                 false,
                 ConstantValue.NotAvailable,
-                builder.CollectionType);
+                ((object)builder.CollectionType == null) ? builder.EnumeratorType : builder.CollectionType);
 
             return new BoundForEachStatement(
                 _syntax,
@@ -374,8 +381,8 @@ namespace Microsoft.CodeAnalysis.CSharp
                 return true;
             }
 
-            bool foundMultipleGenericIEnumerableInterfaces;
-            if (!builder.IsAsync && SatisfiesGetEnumeratorPattern(ref builder, collectionExprType, diagnostics))
+            bool foundMultipleGenericIEnumerableInterfaces; 
+            if (SatisfiesGetEnumeratorPattern(ref builder, collectionExprType, diagnostics))
             {
                 Debug.Assert((object)builder.GetEnumeratorMethod != null);
 

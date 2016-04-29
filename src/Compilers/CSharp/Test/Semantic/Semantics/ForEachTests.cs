@@ -57,11 +57,11 @@ class Program
     static void Main() { }
     static async Task MainAsync()
     {
-        IAsyncEnumerator<int> xx = null;
-        foreach (await var x in xx) { }
+        //IAsyncEnumerator<int> xx = null;
+        //foreach (await var x in xx) { }
 
-        // IAsyncEnumerable<int> yy = null;
-        // foreach (await var y in yy) { }
+        IAsyncEnumerable<int> yy = null;
+        foreach (await var y in yy) { }
     }
 
     interface IAsyncEnumerable<T>
@@ -77,6 +77,9 @@ class Program
 }
 ";
             CreateCompilationWithMscorlib45(text).VerifyDiagnostics(
+                // (8,23): warning CS1998: This async method lacks 'await' operators and will run synchronously. Consider using the 'await' operator to await non-blocking API calls, or 'await Task.Run(...)' to do CPU-bound work on a background thread.
+                //     static async Task MainAsync()
+                Diagnostic(ErrorCode.WRN_AsyncLacksAwaits, "MainAsync").WithLocation(8, 23)
                 );
         }
 
