@@ -22,25 +22,36 @@ public static class Extensions
 // Option4: via a static method on the tasklike
 class MyTasklike
 {
-   [EditorBrowsable(EditorBrowsableState.Never)] public static BuilderType GetBuilder();
+   [EditorBrowsable(EditorBrowsableState.Never)] public static BuilderType GetAsyncMethodBuilder();
 }
 ```
 Option2 has the slight benefit of being able to specify a builder even when you're returning the existing `Task`. But it's worse for the typical `ValueTask` usecase because it requires you to type out the attribute every single time you want to return `ValueTask`. It also doesn't work with lambdas, which don't have a place to hang that attribute.
 
-Option3 is ugly. We could live with that ugliness if it was useful to extend third-party tasklike types, but experience is that the implementation of the builder and the tasklike are closely related, so closely that it's not feasible to build someone else's tasklike. So the ugliness isn't merited.
+Option3 is ugly for expecting you to invoke an extension method on a null `this`, but does let you produce third-party types such as `IAsyncAction` or `IObservable`.
 
-Option3 has the slight advantage of not requiring `TasklikeAttribute` to be defined somewhere.
+I'm wary of Option3 it's hard to implement: it means that the question of whether something is *tasklike* is no longer a property of the type itself, but is instead the result of an extension member lookup in a given context. It would mean that context has to be threaded through a lot of places that it isn't threaded through now.
 
-Option4 is probably the most elegant. I should have gone with that instead of the attribute.
+Options 3 and 4 have the slight advantage of not requiring `TasklikeAttribute` to be defined somewhere. They're also the most flexible about the generic arity of the builder: it need not be exactly the same as that of the tasklike.
+
+I've adopted Option4 because it's cleanest. The prototype also supports Option1, for sake of experimentation.
+
+
+## Discuss: AwaitOnCompleted in the tasklike's builder?
+
+**Question:** Why does a tasklike's own builder decide how to implement `AwaitOnCompleted` and `AwaitUnsafeOnCompleted`?
+
+*Option1:* We could say that a tasklike's builder is solely a **Tasklike completion source**, with methods `SetResult` and `SetException`; the job of `Await*OnCompleted` is delicate, and security critical, and shouldn't be up to each individual builder to re-implement.
+
+*Option2:* We could say that a tasklike's builder has to deal with `Await*OnCompleted` as well.
+
+I picked Option2. I'm not really aware whether there are security implications to this. But it feels like good flexibility that a custom tasklike can control what happens before and after each await. I think we need expert advice on this matter.
 
 
 ## Discuss: genericity of tasklike and builder
 
-**Question.** Why do you need a non-generic `MyBuilder` to build a non-generic `MyTask`? And why do you need an arity-1 `MyBuilder<T>` to build an arity-1 `MyTask<T>`? Why can't we be more flexible about arities?
+**Question.** Can we have a builder with method `SetResult(T value)`, i.e. allowing a `return` statement with operand type `T`, even though it's for an async method whose return type is `Tasklike<U>` for some different `U`?
 
-**Question.** Why can't we write `[Tasklike(typeof(MyBuilder<object>))] MyTask` and use an instantiated `MyBuilder<object>` as the builder-type for building a non-generic tasklike `MyTask`?
-
-*These two things might be possible for top-level methods, but they don't work with lambdas and type inference. Let's spell out the related question about type inference:*
+*This  might be possible for top-level methods, but it doesn't work with lambdas and type inference. Let's spell out the related question about type inference:*
 
 **Question.** When the compiler does generic type inference with the argument `async()=>{return 3;}` being passed to a method `void f(Func<MyTask<T>> lambda)`, how does it go from `3` to `int` to `T = int` ?
 
