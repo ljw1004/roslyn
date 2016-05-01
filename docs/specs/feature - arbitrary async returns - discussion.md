@@ -33,7 +33,9 @@ I'm wary of Option3 it's hard to implement: it means that the question of whethe
 
 Options 3 and 4 have the slight advantage of not requiring `TasklikeAttribute` to be defined somewhere. They're also the most flexible about the generic arity of the builder: it need not be exactly the same as that of the tasklike.
 
-I've adopted Option4 because it's cleanest. The prototype also supports Option1, for sake of experimentation.
+Option 4 doesn't work with interfaces, since they can't have static members.
+
+I've adopted Option4 because it's cleanest, and also Option1 to allow it to work with interfaces. I don't know what is the best option.
 
 
 ## Discuss: AwaitOnCompleted in the tasklike's builder?
