@@ -2,8 +2,6 @@
 
 In C#6, async methods must return either `void` or `Task` or `Task<T>`. This proposed feature allows them to return any *tasklike* type.
 
-**TODO** Currently it recognizes tasklike types by an attribute on them. I want to change it to a method `tasklike.GetBuilder()`. This will allow more flexibility with generics.
-
 > * **TRY IT OUT ONLINE:** [tryroslyn.azurewebsites.net](http://is.gd/Yjvb2P)
 > * **Download:** [ArbitraryAsyncReturns.zip](https://github.com/ljw1004/roslyn/raw/features/async-return/ArbitraryAsyncReturns.zip) [22mb]
 > * **Install:** Unzip the file. Quit VS. Double-click to install in this order: (1) Roslyn.VisualStudio.Setup.vsix, (2) Roslyn.Compilers.Extension.vsix, (3) ExpressionEvaluatorPackage.vsix. I don't think the others are needed.
@@ -59,8 +57,8 @@ async InstrumentedTask TestAsync()
 # Proposal
 
 Define:
-* A *non-generic tasklike* is any non-generic type with the attribute `[System.Runtime.CompilerServices.Tasklike(typeof(...))]` on it, or the type `System.Threading.Tasks.Task`.
-* A *generic tasklike* is any generic type with arity 1 with the same attribute, or the type `System.Threading.Tasks.Task<T>`.
+* A *non-generic tasklike* is any non-generic type with a single public static method `CreateAsyncMethodBuilder()`, or the type `System.Threading.Tasks.Task`.
+* A *generic tasklike* is any generic type with arity 1 with the same method, or the type `System.Threading.Tasks.Task<T>`.
 
 The rules for [async functions](https://github.com/ljw1004/csharpspec/blob/gh-pages/classes.md#async-functions) currently allow an async method to return either `void` or `Task` or `Task<T>`; this will be changed to allow it to return either `void`, or any non-generic `Tasklike`, or generic `Tasklike<T>`.
 
@@ -83,19 +81,11 @@ The [inferred return type](https://github.com/ljw1004/csharpspec/blob/gh-pages/e
 
 **Semantics for execution of an async method**
 
-Define the *builder type* of a tasklike as follows:
-* For non-generic `Tasklike`
-  * If it has attribute `[Tasklike(typeof(Builder))]`, the builder type is the `Builder` argument of the attribute
-  * Otherwise the builder type is `System.Runtime.CompilerService.AsyncTaskMethodBuilder`
-  * It is an error if the builder type is generic, or isn't public.
-* For a generic `Tasklike<T>`
-  * If it has attribute `[Tasklike(typeof(Builder<>))]`, the builder type is the `Builder<T>`, constructed from the open type of the attribute argument and the type argument of the Tasklike
-  * Otherwise the builder type is `System.Runtime.CompilerService.AsyncTaskMethodBuilder<T>`, constructed from the open type `System.Runtime.CompilerServices.AsyncTaskMethodBuilder<>` and the type argument of the Tasklike
-  * It is an error if the builder type has 0 or more than 1 generic type arguments, or isn't public.
+The *builder type* of a tasklike is the return type of the static method `CreateAsyncMethodBuilder()` on that tasklike. (Except: if the tasklike is `System.Threading.Tasks.Task` then the builder type is `System.Runtime.CompilerService.AsyncTaskMethodBuilder`; and if the tasklike is `System.Threading.Tasks.Task<T>` then the builder type is `System.Runtime.CompilerService.AsyncTaskMethodBuilder<T>`).
 
 When an async tasklike-returning method is invoked,
 * It creates `var sm = new CompilerGeneratedStateMachineType()` where this compiler-generated state machine type represents the async tasklike method, and may be a struct or a class, and has a field `BuilderType builder` in it, and implements `IAsyncStateMachine`.
-* It assigns `sm.builder = BuilderType.Create()` to create a new instance of the builder type. It is an error if this static method on the builder type doesn't exist or isn't public or doesn't return `BuilderType`.
+* It assigns `sm.builder = Tasklike.CreateAsyncMethodBuilder()` to create a new instance of the builder type. (Except: if the tasklike is `Task` or `Task<T>`, then the assignment is instead `sm.builder = BuilderType.Create()`.)
 * It then calls the `void Start<TSM>(ref TSM sm) where TSM : IAsyncStateMachine` method on `builder`. It is an error if this instance method doesn't exist or isn't public or has a different signature or constraints. The `sm` variable is that same `sm` as was constructed earlier. Upon being given this `sm` variable, the builder must invoke `sm.MoveNext()` on it exactly once, either now in the `Start` method or in the future. 
 * It then retrieves the `U Task {get;}` property on `sm.builder`. The value of this property is then returned from the async method. It is an error if this instance property doesn't exist or isn't public or if its property type `U` isn't identical to the return type of the async tasklike-returning method.
 
