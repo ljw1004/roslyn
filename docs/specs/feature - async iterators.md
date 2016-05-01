@@ -1,6 +1,11 @@
 # C# feature proposal: async iterators
 
-(There's already a discussion thread for this: https://github.com/dotnet/roslyn/issues/261)
+> * The current prototype supports *consumption* of async enumerators and async enumerables, `foreach (await var x in e)`, but not *production*
+> * **Download:** [ArbitraryAsyncReturns.zip](https://github.com/ljw1004/roslyn/raw/features/async-return/ArbitraryAsyncReturns.zip) [22mb]
+> * **Install:** Unzip the file. Quit VS. Double-click to install in this order: (1) Roslyn.VisualStudio.Setup.vsix, (2) Roslyn.Compilers.Extension.vsix, (3) ExpressionEvaluatorPackage.vsix. I don't think the others are needed.
+> * **Test:** the zip file contains a sample project
+> * **Uninstall:** I've usually been able to go to within Visual Studio to Tools>Extensions, search for Roslyn, and uninstall in the order (1) Expression Evaluators, (2) Compilers, (3) Language Service. Once that resulted in a broken VS that was unable to load C# projects, and I unbroke it by deleting the entire folder `%userprofile%\AppData\Roaming\Microsoft\VisualStudio` and `%userprofile%\AppData\Local\Microsoft\VisualStudio`. Doing so reset all my VS settings to default.
+> * **Discuss:** in the [discussion thread](https://github.com/dotnet/roslyn/issues/261)
 
 The way I've written this proposal is with a tiny language change which leaves almost everything up to the libraries. The language doesn't hard-code anything specifically about `IAsyncEnumerable`. I'll start by writing the end-to-end of what coders will experience, then I'll get to the actual tiny language proposal.
 
