@@ -62,11 +62,6 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundForEachStatement BindForEachPartsWorker(DiagnosticBag diagnostics, Binder originalBinder)
         {
-            //var tt = this.IterationVariable;
-            // ASYNCITERATOR: I'm trying to flush out whether there's a race on IterationVariable trying to infer
-            // the type of the thing at a moment when it's not yet ready...
-
-
             BoundExpression collectionExpr = this.Next.BindValue(_syntax.Expression, diagnostics, BindValueKind.RValue); //bind with next to avoid seeing iteration variable
             bool isAsync = (_syntax.AwaitKeyword.Kind() != SyntaxKind.None);
 
@@ -244,6 +239,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             BoundExpression collectionExpr = this.Next.BindValue(collectionSyntax, diagnostics, BindValueKind.RValue);
 
             ForEachEnumeratorInfo.Builder builder = new ForEachEnumeratorInfo.Builder();
+            builder.IsAsync = (_syntax.AwaitKeyword.Kind() != SyntaxKind.None);
             TypeSymbol inferredType;
             GetEnumeratorInfoAndInferCollectionElementType(ref builder, ref collectionExpr, diagnostics, out inferredType);
             return inferredType;

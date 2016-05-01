@@ -1185,6 +1185,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Extensions.ContextQuery
             //  const var
             //  for (var
             //  foreach (var
+            //  foreach (await var
             //  using (var
             //  from var
             //  join var
@@ -1206,6 +1207,19 @@ namespace Microsoft.CodeAnalysis.CSharp.Extensions.ContextQuery
                     previous.IsKind(SyntaxKind.UsingKeyword))
                 {
                     return true;
+                }
+            }
+
+            if (token.IsKind(SyntaxKind.AwaitKeyword))
+            {
+                var previous = token.GetPreviousToken(includeSkipped: true);
+                if (previous.IsKind(SyntaxKind.OpenParenToken))
+                {
+                    previous = previous.GetPreviousToken(includeSkipped: true);
+                    if (previous.IsKind(SyntaxKind.ForEachKeyword))
+                    {
+                        return true;
+                    }
                 }
             }
 

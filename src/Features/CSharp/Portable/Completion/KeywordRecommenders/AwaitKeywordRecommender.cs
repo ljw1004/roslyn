@@ -17,8 +17,6 @@ namespace Microsoft.CodeAnalysis.CSharp.Completion.KeywordRecommenders
 
         protected override bool IsValidContext(int position, CSharpSyntaxContext context, CancellationToken cancellationToken)
         {
-            // ASYNCITERATOR: also "foreach (var v |" and "foreach (var v awai |"
-
             if (context.IsGlobalStatementContext)
             {
                 return true;
@@ -51,6 +49,18 @@ namespace Microsoft.CodeAnalysis.CSharp.Completion.KeywordRecommenders
                 }
 
                 return true;
+            }
+
+
+            // also "foreach (|" and "foreach (awai|"
+            var token = context.TargetToken;
+            if (token.Kind() == SyntaxKind.OpenParenToken)
+            {
+                var statement = token.GetAncestor<ForEachStatementSyntax>();
+                if (statement != null && token == statement.OpenParenToken)
+                {
+                    return true;
+                }
             }
 
             return false;
