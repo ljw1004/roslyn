@@ -62,6 +62,11 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundForEachStatement BindForEachPartsWorker(DiagnosticBag diagnostics, Binder originalBinder)
         {
+            //var tt = this.IterationVariable;
+            // ASYNCITERATOR: I'm trying to flush out whether there's a race on IterationVariable trying to infer
+            // the type of the thing at a moment when it's not yet ready...
+
+
             BoundExpression collectionExpr = this.Next.BindValue(_syntax.Expression, diagnostics, BindValueKind.RValue); //bind with next to avoid seeing iteration variable
             bool isAsync = (_syntax.AwaitKeyword.Kind() != SyntaxKind.None);
 
@@ -102,6 +107,10 @@ namespace Microsoft.CodeAnalysis.CSharp
 
 
             BoundTypeExpression boundIterationVariableType = new BoundTypeExpression(typeSyntax, alias, iterationVariableType);
+            // There's a race condition here. In the case of binding Enumerables, then the binder for IterationVariable
+            // was able to infer its collection type fine. But in the case of binding AsyncEnumerables (which apparently
+            // involve more work) then IterationVariable is inferred to be "null", which gets transformed into "var",
+            // which isn't correct.
             this.IterationVariable.SetTypeSymbol(iterationVariableType);
 
             BoundStatement body = originalBinder.BindPossibleEmbeddedStatement(_syntax.Statement, diagnostics);

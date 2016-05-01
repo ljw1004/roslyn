@@ -1,14 +1,18 @@
 ﻿using System.Threading.Tasks;
 using System.Runtime.CompilerServices;
+using System.ComponentModel;
 
 namespace System.Threading.Tasks
 {
     [Tasklike(typeof(WeavingTaskMethodBuilder))]
-    class WeavingTask
+    public class WeavingTask
     {
         private Task _task;
         public WeavingTask(Task task) { _task = task; }
         public TaskAwaiter GetAwaiter() => _task.GetAwaiter();
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public static WeavingTaskMethodBuilder CreateAsyncMethodBuilder() => WeavingTaskMethodBuilder.Create();
     }
 }
 
@@ -26,7 +30,7 @@ namespace System.Runtime.CompilerServices
         public void GetResult() { }
     }
 
-    struct WeavingTaskMethodBuilder
+    public struct WeavingTaskMethodBuilder
     {
         private AsyncTaskMethodBuilder _taskBuilder;
         private WeavingTask _task;

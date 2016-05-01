@@ -1,10 +1,10 @@
-﻿using System.Reflection;
+﻿using System.ComponentModel;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
 namespace System.Threading.Tasks
 {
-    [Tasklike(typeof(FactoryTaskMethodBuilder))]
     public class FactoryTask
     {
         public IAsyncStateMachine sm_original;
@@ -24,19 +24,22 @@ namespace System.Threading.Tasks
             // return the task for this instance
             return builder._builder.Task;
         }
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public static FactoryTaskMethodBuilder CreateAsyncMethodBuilder() => new FactoryTaskMethodBuilder();
+
     }
 }
 
 namespace System.Runtime.CompilerServices
 {
-    class FactoryTaskMethodBuilder
+    public class FactoryTaskMethodBuilder
     {
         // When the user calls the FactoryTask-returning async method stub, it merely creates the state machine struct,
         // calls Create() to create an instance of the builder as a field of the struct, calls Start() on it which
         // does nothing, and returns Task. All it does is stash away a (necessarily boxed) reference to the state machine struct.
         public FactoryTask _task;
 
-        public static FactoryTaskMethodBuilder Create() => new FactoryTaskMethodBuilder();
         public void Start<TSM>(ref TSM sm) where TSM : IAsyncStateMachine { _task = new FactoryTask { sm_original = sm }; }
         public FactoryTask Task => _task;
 

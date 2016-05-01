@@ -31,6 +31,26 @@ class C
         }
 
         [Fact]
+        public void AsyncTasklikeFromBuilderMethod()
+        {
+            var source = @"
+using System.Threading.Tasks;
+class C {
+    async ValueTask f() { await (Task)null; }
+    async ValueTask<int> g() { await (Task)null; return 1; }
+}
+struct ValueTask { public static string CreateAsyncMethodBuilder() => null; }
+struct ValueTask<T> { public static Task<T> CreateAsyncMethodBuilder() => null; }
+";
+
+            var compilation = CreateCompilationWithMscorlib45(source).VerifyDiagnostics();
+            var methodf = (SourceMethodSymbol)compilation.GlobalNamespace.GetTypeMembers("C").Single().GetMembers("f").Single();
+            var methodg = (SourceMethodSymbol)compilation.GlobalNamespace.GetTypeMembers("C").Single().GetMembers("g").Single();
+            Assert.True(methodf.IsAsync);
+            Assert.True(methodg.IsAsync);
+        }
+
+        [Fact]
         public void AsyncTasklikeMethod()
         {
             var source = @"

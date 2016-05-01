@@ -189,10 +189,30 @@ namespace Microsoft.CodeAnalysis.CSharp
                 var builderVariable = F.SynthesizedLocal(methodScopeAsyncMethodBuilderMemberCollection.BuilderType, null);
 
                 // local.$builder = System.Runtime.CompilerServices.AsyncTaskMethodBuilder<typeArgs>.Create();
+                // or
+                // local.$builder = Tasklike.CreateAsyncMethodBuilder()
+                TypeSymbol createReceiverType = methodScopeAsyncMethodBuilderMemberCollection.BuilderType;
+                string createMethodName = "Create";
+                // TODO: the following code is copy+pasted from TypeSymbolExtensions.cs.
+                // Once C# LDM decides upon the mechanism for how tasklikes are recognized,
+                // it should be cleaned up
+                var tasklikeType = methodScopeAsyncMethodBuilderMemberCollection.Task?.Type;
+                if (tasklikeType != null)
+                {
+                    var createMethods = tasklikeType.GetMembers(WellKnownMemberNames.CreateAsyncMethodBuilder);
+                    var createMethod = createMethods.Length == 1 ? createMethods[0] as MethodSymbol : null;
+                    if (createMethod != null && createMethod.Arity == 0 && createMethod.ParameterCount == 0
+                        && !createMethod.ReturnsVoid && createMethod.DeclaredAccessibility == Accessibility.Public
+                        && createMethod.IsStatic)
+                    {
+                        createReceiverType = tasklikeType;
+                        createMethodName = WellKnownMemberNames.CreateAsyncMethodBuilder;
+                    }
+                }
                 bodyBuilder.Add(
                     F.Assignment(
                         F.Field(F.Local(stateMachineVariable), _builderField.AsMember(frameType)),
-                        F.StaticCall(_ignoreAccessibility ? BinderFlags.IgnoreAccessibility : BinderFlags.None, methodScopeAsyncMethodBuilderMemberCollection.BuilderType, "Create", ImmutableArray<TypeSymbol>.Empty)));
+                        F.StaticCall(_ignoreAccessibility ? BinderFlags.IgnoreAccessibility : BinderFlags.None, createReceiverType, createMethodName, ImmutableArray<TypeSymbol>.Empty)));
 
                 // local.$stateField = NotStartedStateMachine
                 bodyBuilder.Add(

@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using Roslyn.Utilities;
+using static Microsoft.CodeAnalysis.CSharp.CSharpCompilation;
+using Microsoft.CodeAnalysis.RuntimeMembers;
 
 namespace Microsoft.CodeAnalysis.CSharp.Symbols
 {
@@ -1165,24 +1167,43 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
         /// </summary>
         public static bool IsNongenericTaskOrTasklike(this TypeSymbol type, CSharpCompilation compilation)
         {
-            return (type != null && type == compilation.GetWellKnownType(WellKnownType.System_Threading_Tasks_Task)
-                || (type.GetArity() == 0 && type.GetCustomBuilderForTasklike() != null));
+            if ((object)type == null) return false;
+            if (type == compilation.GetWellKnownType(WellKnownType.System_Threading_Tasks_Task)) return true;
+            if (type.GetArity() == 0 && type.GetCustomBuilderForTasklike() != null) return true;
+            return false;
         }
 
         /// <summary>
-        /// Given a type, looks for a [Tasklike(typeof(Builder))] attribute on it, and if present then
-        /// returns that Builder. In the case of a generic builder e.g. typeof(Builder&lt;&gt;) or
-        /// or typeof(Builder&lt;int&gt;) it returns the argument of typeof as-is
+        /// Given a type, looks whether it has an async method builder for it
         /// </summary>
         public static NamedTypeSymbol GetCustomBuilderForTasklike(this TypeSymbol type)
         {
+            if ((object)type == null || type.IsErrorType() || type.IsPointerType()) return null;
+            var createMethods = type.GetMembers(WellKnownMemberNames.CreateAsyncMethodBuilder);
+            var createMethod = createMethods.Length == 1 ? createMethods[0] as MethodSymbol : null;
+            if (createMethod != null && createMethod.Arity == 0 && createMethod.ParameterCount == 0
+                && !createMethod.ReturnsVoid && createMethod.DeclaredAccessibility == Accessibility.Public
+                && createMethod.IsStatic)
+            {
+                return createMethod.ReturnType as NamedTypeSymbol;
+            }
+
+            var ntype = type as NamedTypeSymbol;
+            if (ntype == null) return null;
+            if (ntype.Arity >= 2) return null;
             foreach (var attr in type.GetAttributes())
             {
                 if (attr.IsTargetAttribute(type, AttributeDescription.TasklikeAttribute)
                     && attr.CommonConstructorArguments.Length == 1
                     && attr.CommonConstructorArguments[0].Kind == TypedConstantKind.Type)
                 {
-                    return attr.CommonConstructorArguments[0].Value as NamedTypeSymbol;
+                    var attrArgument = attr.CommonConstructorArguments[0].Value as NamedTypeSymbol;
+                    if (attrArgument == null || attrArgument.Arity != ntype.Arity) return null;
+                    if (ntype.Arity == 0) return attrArgument;
+                    if (!attrArgument.TypeArguments[0].IsErrorType()) return null; // must be open
+                    var resultType = ntype.TypeArguments[0];
+                    var builderType = attrArgument.ConstructedFrom.Construct(resultType);
+                    return builderType;
                 }
             }
             return null;

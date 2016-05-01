@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -6,7 +7,6 @@ using System.Threading.Tasks;
 
 namespace System.Threading.Tasks
 {
-    [Tasklike(typeof(ValueTaskMethodBuilder<>))]
     public struct ValueTask<TResult> : IEquatable<ValueTask<TResult>>
     {
         // A ValueTask holds *either* a value _result, *or* a task _task. Not both.
@@ -31,6 +31,9 @@ namespace System.Threading.Tasks
         public ValueTaskAwaiter<TResult> GetAwaiter() => new ValueTaskAwaiter<TResult>(this);
         public ConfiguredValueTaskAwaitable<TResult> ConfigureAwait(bool continueOnCapturedContext) => new ConfiguredValueTaskAwaitable<TResult>(this, continueOnCapturedContext: continueOnCapturedContext);
         public override string ToString() => _task == null ? _result.ToString() : _task.Status == TaskStatus.RanToCompletion ? _task.Result.ToString() : _task.Status.ToString();
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public static ValueTaskMethodBuilder<TResult> CreateAsyncMethodBuilder() => new ValueTaskMethodBuilder<TResult>();
     }
 }
 
@@ -38,7 +41,7 @@ namespace System.Threading.Tasks
 
 namespace System.Runtime.CompilerServices
 {
-    struct ValueTaskMethodBuilder<TResult>
+    public struct ValueTaskMethodBuilder<TResult>
     {
         // This builder contains *either* an AsyncTaskMethodBuilder, *or* a result.
         // At the moment someone retrieves its Task, that's when we collapse to the real AsyncTaskMethodBuilder
@@ -46,7 +49,6 @@ namespace System.Runtime.CompilerServices
         internal AsyncTaskMethodBuilder<TResult> _taskBuilder; internal bool GotBuilder;
         internal TResult _result; internal bool GotResult;
 
-        public static ValueTaskMethodBuilder<TResult> Create() => new ValueTaskMethodBuilder<TResult>();
         public void Start<TStateMachine>(ref TStateMachine stateMachine) where TStateMachine : IAsyncStateMachine
         {
             stateMachine.MoveNext();

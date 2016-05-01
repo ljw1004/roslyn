@@ -3155,6 +3155,47 @@ class C
         }
 
         [Fact]
+        public void PresentAsyncTasklikeBuilderMethod()
+        {
+            var source = @"
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
+class C
+{
+    async ValueTask f() { await (Task)null; }
+    async ValueTask<int> g() { await (Task)null; return 1; }
+}
+struct ValueTask { public static ValueTaskMethodBuilder CreateAsyncMethodBuilder() => null; }
+struct ValueTask<T> { public static ValueTaskMethodBuilder<T> CreateAsyncMethodBuilder() => null;}
+class ValueTaskMethodBuilder
+{
+    public ValueTask Task { get; }
+    public void AwaitOnCompleted<TAwaiter, TStateMachine>(ref TAwaiter awaiter, ref TStateMachine stateMachine) where TAwaiter : INotifyCompletion where TStateMachine : IAsyncStateMachine { }
+    public void AwaitUnsafeOnCompleted<TAwaiter, TStateMachine>(ref TAwaiter awaiter, ref TStateMachine stateMachine) where TAwaiter : ICriticalNotifyCompletion where TStateMachine : IAsyncStateMachine { }
+    public void SetException(System.Exception exception) { }
+    public void SetResult() { }
+    public void SetStateMachine(IAsyncStateMachine stateMachine) { }
+    public void Start<TStateMachine>(ref TStateMachine stateMachine) where TStateMachine : IAsyncStateMachine { }
+}
+class ValueTaskMethodBuilder<T>
+{
+    public ValueTask<T> Task { get; }
+    public void AwaitOnCompleted<TAwaiter, TStateMachine>(ref TAwaiter awaiter, ref TStateMachine stateMachine) where TAwaiter : INotifyCompletion where TStateMachine : IAsyncStateMachine { }
+    public void AwaitUnsafeOnCompleted<TAwaiter, TStateMachine>(ref TAwaiter awaiter, ref TStateMachine stateMachine) where TAwaiter : ICriticalNotifyCompletion where TStateMachine : IAsyncStateMachine { }
+    public void SetException(System.Exception exception) { }
+    public void SetResult(T result) { }
+    public void SetStateMachine(IAsyncStateMachine stateMachine) { }
+    public void Start<TStateMachine>(ref TStateMachine stateMachine) where TStateMachine : IAsyncStateMachine { }
+}
+";
+
+            var v = CompileAndVerify(source, null, options: TestOptions.ReleaseDll);
+            //v.VerifyIL("C.g", @"");
+            //v.VerifyIL("C.f", @"");
+        }
+
+
+        [Fact]
         public void PresentAsyncTasklikeBuilder()
         {
             var source = @"
@@ -3366,12 +3407,12 @@ namespace System.Runtime.CompilerServices { class TasklikeAttribute : Attribute 
 ";
             var comp = CreateCompilationWithMscorlib45(source);
             comp.VerifyEmitDiagnostics(
-                // (5,30): error CS7002: Unexpected use of a generic name
-                //     async Mismatch1<int> f() { await (Task)null; return 1; }
-                Diagnostic(ErrorCode.ERR_UnexpectedGenericName, "{ await (Task)null; return 1; }").WithLocation(5, 30),
-                // (6,30): error CS7002: Unexpected use of a generic name
+                // (6,26): error CS1983: The return type of an async method must be void, Task or Task<T>
                 //     async Mismatch2<int> g() { await (Task)null; return 1; }
-                Diagnostic(ErrorCode.ERR_UnexpectedGenericName, "{ await (Task)null; return 1; }").WithLocation(6, 30)
+                Diagnostic(ErrorCode.ERR_BadAsyncReturn, "g").WithLocation(6, 26),
+                // (5,26): error CS1983: The return type of an async method must be void, Task or Task<T>
+                //     async Mismatch1<int> f() { await (Task)null; return 1; }
+                Diagnostic(ErrorCode.ERR_BadAsyncReturn, "f").WithLocation(5, 26)
                 );
         }
 
