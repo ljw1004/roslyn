@@ -100,13 +100,17 @@ In the case where the builder type is a struct, and `sm` is also a struct, it's 
 * The builder is at liberty anytime to call `boxed_sm.SetStateMachine(boxed_sm)`. This will invoke the `void SetStateMachine(IAsyncStateMachine boxed_sm)` method on `boxed_sm.builder`. It is an error if this instance method doesn't exist or isn't public.
 * This mechanism is typically used by struct builder types so they can box only once the `sm` parameter they receive in their `Start` or `AwaitOnCompleted` or `AwaitUnsafeOnCompleted` methods; on subsequent calls, they ignore that parameter and used the version they have already boxed. 
 
-There's one final requirement:
-* The Visual Studio IDE might invoke the method `builder.GetCompletionActions()`, where the return type must either implement `System.Threading.Tasks.Task` or be `Action[]`. It is an error if this instance method doesn't exist or doesn't have the right return type.
-  * The IDE calls this in order to display an "async callstack".
-  * The idea is that if someone had retrieved the property `var tasklike = builder.Task`, and then called `tasklike.OnCompleted(action)` or `tasklike.UnsafeOnCompleted(action)`, then the IDE needs to be able to get a list of all those `action`s which are still pending.
-  * It's common for tasklike types to use a `System.Threading.Tasks.Task` under the hood. We don't have any way to extract the list of actions out of one, but the IDE does, and if you return an object of type `Task` then the IDE will use its techniques to extract those actions and display the callstack.
-  * If you return `null` from this method, then the IDE will never be able to display async callstacks beyond the point of an async tasklike-returning method. This will make users unhappy.
+## Debugging
 
+Visual Studio has excellent support for async debugging - the ability to debug-step-over an async method and do debug-step-out of an async method, the async callstack, and the Tasks window that shows all outstanding tasks. Users will at least expect the first two to work for tasklike-returning async methods; I'm not sure about the third.
+
+For async callstacks:
+* The Visual Studio IDE might use reflection to attempt to invoke the method `builder.GetCompletionActions()`, where the return type must either implement `System.Threading.Tasks.Task` or be `Action[]`.
+  * The idea is that if someone had retrieved the property `var tasklike = builder.Task`, and then called `tasklike.OnCompleted(action)` or `tasklike.UnsafeOnCompleted(action)`, then the IDE needs to be able to get a list of all those `action`s which are still pending.
+  * It's common for tasklike types to use a `System.Threading.Tasks.Task` under the hood. We don't have any way to extract the list of actions out of one, but the IDE does, and if you return an object of type `Task` then the IDE will use its techniques (a reflection-based call into `GetDelegatesFromContinuationObject`) to extract those actions and display the callstack.
+  * If you return `null` from this method, or if the method is absent or has the wrong return type, then the IDE will never be able to display async callstacks beyond the point of an async tasklike-returning method. This will make users unhappy.
+
+***TODO:*** work with the CLR and debugger team to understand precisely what's needed here.
 
 
 ## Compilation notes and edge cases
