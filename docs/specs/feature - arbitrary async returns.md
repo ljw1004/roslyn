@@ -52,6 +52,7 @@ async InstrumentedTask TestAsync()
 	await Task.Delay(20);
 }
 ```
+As another example, user [ckimes89](https://github.com/ckimes89) implemented a C# version of Haskell's `Maybe` monad with `do` notation: [[link](https://github.com/ckimes89/arbitrary-async-return-nullable/)]
 
 
 # Proposal
