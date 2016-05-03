@@ -60,13 +60,15 @@ Define:
 * A *non-generic tasklike* is any non-generic type with a single public static method `CreateAsyncMethodBuilder()`, or the type `System.Threading.Tasks.Task`.
 * A *generic tasklike* is any generic type with arity 1 with the same method, or the type `System.Threading.Tasks.Task<T>`.
 
+> We can surely figure out a good-enough mechanism for identifying tasks as tasklike. I've written this proposal with one possibility (above) and have outlined other options [here](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns%20-%20discussion.md#discuss-connection-between-tasklike-and-builder): (1) attribute on type, (2) attribute on async method, (3) extension method, (4) static method.
+
 The rules for [async functions](https://github.com/ljw1004/csharpspec/blob/gh-pages/classes.md#async-functions) currently allow an async method to return either `void` or `Task` or `Task<T>`; this will be changed to allow it to return either `void`, or any non-generic `Tasklike`, or generic `Tasklike<T>`.
 
 The rules for [evaluation of task-returning async functions](https://github.com/ljw1004/csharpspec/blob/gh-pages/classes.md#evaluation-of-a-task-returning-async-function) currently talk in general terms about "generating an instance of the returned task type" and "initially incomplete state" and "moved out of the incomplete state". These will be changed to spell out how that returned tasklike is constructed and how its state is transitioned, as detailed below.
 
 The overload resolution rules for [better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member) currently say that if neither candidate is better, and also the two applicable candidates have identical parameter types `{P1...Pn}` and `{Q1...Qn}` then we attempt  tie-breakers to determine which is the better one, otherwise it is an ambiguity error. With this feature, this will be modified so that if neither candidate is better and also the parameter types are identical *up to tasklikes* then attempt the tie-breakers: in other words, for purposes of this identity comparison, all non-generic `Tasklike`s are deemed identical to each other, and all generic `Tasklike<T>`s for a given `T` are deemed identical to each other.
 
-> For explanation of why the proposal is this way, and to see alternatives, please read the [Design rationale and alternatives](feature - arbitrary async returns - discussion.md).
+> For explanation of why the proposal is this way, and to see alternatives, please read the [Design rationale and alternatives](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns%20-%20discussion.md#discuss-overload-resolution-with-async-lambdas).
 
 The rules for [anonymous function conversion](https://github.com/ljw1004/csharpspec/blob/gh-pages/conversions.md#anonymous-function-conversions) currently allow an async lambda to be converted to a delegate type whose return type is either `void` or `Task` or `Task<T>`; this will be changed to let them return `void` or any non-generic `Tasklike` or any generic `Tasklike<T>`.
 
@@ -104,13 +106,13 @@ In the case where the builder type is a struct, and `sm` is also a struct, it's 
 
 Visual Studio has excellent support for async debugging - the ability to debug-step-over an async method and do debug-step-out of an async method, the async callstack, and the Tasks window that shows all outstanding tasks. Users will at least expect the first two to work for tasklike-returning async methods; I'm not sure about the third.
 
+> If we decided to put arbitrary-async-returns into C#7, there's a strong possibility that the Visual Studio debugger would not *yet* be able to handle them. We could scrape by with a third-party debugger extension for a time, while we await  a subsequent release/update of VS to bring proper debugger support. When debugger support does eventually arrive, I bet that most tasklikes would need to be updated to take advantage of it.
+
 For async callstacks:
 * The Visual Studio IDE might use reflection to attempt to invoke the method `builder.GetCompletionActions()`, where the return type must either implement `System.Threading.Tasks.Task` or be `Action[]`.
   * The idea is that if someone had retrieved the property `var tasklike = builder.Task`, and then called `tasklike.OnCompleted(action)` or `tasklike.UnsafeOnCompleted(action)`, then the IDE needs to be able to get a list of all those `action`s which are still pending.
   * It's common for tasklike types to use a `System.Threading.Tasks.Task` under the hood. We don't have any way to extract the list of actions out of one, but the IDE does, and if you return an object of type `Task` then the IDE will use its techniques (a reflection-based call into `GetDelegatesFromContinuationObject`) to extract those actions and display the callstack.
   * If you return `null` from this method, or if the method is absent or has the wrong return type, then the IDE will never be able to display async callstacks beyond the point of an async tasklike-returning method. This will make users unhappy.
-
-***TODO:*** work with the CLR and debugger team to understand precisely what's needed here.
 
 
 ## Compilation notes and edge cases
