@@ -139,7 +139,7 @@ void g<T>(Func<ValueTask<T>> lambda)  // infers T = int [under rule 5 of the pro
 // With rule 6, it treats the two candidates as identical, and prefers the second for being more specific.
 ```
 
-**Semantics for execution of an async method**
+## Semantics for execution of an async method
 
 The *builder type* of a tasklike is the return type of the static method `CreateAsyncMethodBuilder()` on that tasklike. (Except: if the tasklike is `System.Threading.Tasks.Task` then the builder type is `System.Runtime.CompilerService.AsyncTaskMethodBuilder`; and if the tasklike is `System.Threading.Tasks.Task<T>` then the builder type is `System.Runtime.CompilerService.AsyncTaskMethodBuilder<T>`).
 
@@ -160,43 +160,6 @@ In the case where the builder type is a struct, and `sm` is also a struct, it's 
 * The builder is at liberty anytime to call `boxed_sm.SetStateMachine(boxed_sm)`. This will invoke the `void SetStateMachine(IAsyncStateMachine boxed_sm)` method on `boxed_sm.builder`. It is an error if this instance method doesn't exist or isn't public.
 * This mechanism is typically used by struct builder types so they can box only once the `sm` parameter they receive in their `Start` or `AwaitOnCompleted` or `AwaitUnsafeOnCompleted` methods; on subsequent calls, they ignore that parameter and used the version they have already boxed. 
 
-## Debugging
-
-Visual Studio has excellent support for async debugging - the ability to debug-step-over an async method and do debug-step-out of an async method, the async callstack, and the Tasks window that shows all outstanding tasks. Users will at least expect the first two to work for tasklike-returning async methods; I'm not sure about the third.
-
-> If we decided to put arbitrary-async-returns into C#7, there's a strong possibility that the Visual Studio debugger would not *yet* be able to handle them. We could scrape by with a third-party debugger extension for a time, while we await a subsequent release/update of VS to bring proper debugger support. When debugger support does eventually arrive, I bet that most tasklikes would need to be updated to take advantage of it.
-
-For async callstacks:
-* The Visual Studio IDE might use reflection to attempt to invoke the method `builder.GetCompletionActions()`, where the return type must either implement `System.Threading.Tasks.Task` or be `Action[]`.
-  * The idea is that if someone had retrieved the property `var tasklike = builder.Task`, and then called `tasklike.OnCompleted(action)` or `tasklike.UnsafeOnCompleted(action)`, then the IDE needs to be able to get a list of all those `action`s which are still pending.
-  * It's common for tasklike types to use a `System.Threading.Tasks.Task` under the hood. We don't have any way to extract the list of actions out of one, but the IDE does, and if you return an object of type `Task` then the IDE will use its techniques (a reflection-based call into `GetDelegatesFromContinuationObject`) to extract those actions and display the callstack.
-  * If you return `null` from this method, or if the method is absent or has the wrong return type, then the IDE will never be able to display async callstacks beyond the point of an async tasklike-returning method. This will make users unhappy.
-
-
-## Compilation notes and edge cases
-
-**Concrete tasklike**. The following kind of thing is conceptually impossible, because the compiler needs to know the *concrete* type of the tasklike that's being constructed (in order to construct it).
-```cs
-class C<T> where T : MyTasklike {
-    async T f() { } // error: the return type must be a concrete type
-}
-```
-
-**Incomplete builder**. The compiler should recognize the following method `f` as an async method that doesn't need a return statement, and should bind it accordingly. There is nothing wrong with the `async` modifier nor the absence of a `return` keyword. The fact that `MyTasklike`'s builder doesn't fulfill the pattern is an error that comes later on: it doesn't prevent the compiler from binding method `f`.
-```cs
-class C { async MyTasklike f() { } }
-class MyTasklike { public static string CreateAsyncMethodBuilder() => null; }
-```
-
-If the builder doesn't fulfill the pattern, well, that's an edge case. It should definitely give errors (like it does today e.g. if you have an async Task-returning method and target .NET4.0), but it doesn't matter to have high-quality errors (again it doesn't have high quality errors today). One unusual case of failed builder is where the builder has the wrong constraints on its generic type parameters. As far as I can tell, constraints aren't taken into account elsewhere in the compiler (the only other well known methods with generic parameters are below, and they're all in mscorlib, so no chance of them ever getting wrong)
-```
-System.Array.Empty
-System_Runtime_InteropServices_WindowsRuntime_WindowsRuntimeMarshal__AddEventHandler_T
-System_Runtime_InteropServices_WindowsRuntime_WindowsRuntimeMarshal__RemoveEventHandler_T
-System_Activator__CreateInstance_T
-System_Threading_Interlocked__CompareExchange_T
-Microsoft_VisualBasic_CompilerServices_Conversions__ToGenericParameter_T_Object
-```
 
 # Design rationale and alternatives
 
