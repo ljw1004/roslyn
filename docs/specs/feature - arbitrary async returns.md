@@ -64,7 +64,8 @@ __Rule 1: Tasklike.__ Define:
 ```csharp
 struct ValueTask<T>
 {
-   [EditorBrowsable(EditorBrowsableState.Never)] public static ValueTaskBuilder<T> CreateAsyncMethodBuilder() { ... }
+   [EditorBrowsable(EditorBrowsableState.Never)]
+   public static ValueTaskBuilder<T> CreateAsyncMethodBuilder() { ... }
    ...
 }
 ```
@@ -133,9 +134,9 @@ void f<T>(Func<Task<T>> lambda)  // currently in C#6 infers T = int, and is appl
 
 g(async () => 3); 
 void g<T>(Func<T> lambda)             // infers T = Task<int> [as it always has], and is applicable
-void g<T>(Func<ValueTask<T>> lambda)  // infers T = int [under rule 3 of the proposal], and is applicable
-// Without rule 4 of the proposal, this would be an ambiguity error.
-// With rule 4, it treats the two candidates as identical, and prefers the second for being more specific.
+void g<T>(Func<ValueTask<T>> lambda)  // infers T = int [under rule 5 of the proposal], and is applicable
+// Without rule 6 of the proposal, this would be an ambiguity error.
+// With rule 6, it treats the two candidates as identical, and prefers the second for being more specific.
 ```
 
 **Semantics for execution of an async method**
