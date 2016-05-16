@@ -139,7 +139,7 @@ void g<T>(Func<ValueTask<T>> lambda)  // infers T = int [under rule 5 of the pro
 // With rule 6, it treats the two candidates as identical, and prefers the second for being more specific.
 ```
 
-__Rule 7: overload resolution betterness.__ The overload resolution rules for [Exactly matching expression](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) and [Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target) both currently "dig into" the `Task<T>` type to recursively determine whether one parameter type is better than another. This will be amended to also dig into any tasklikes.
+__Rule 7: overload resolution betterness.__ The overload resolution rules for [Exactly matching expression](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) and [Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target) both currently "dig into" the `Task<T>` type to recursively determine whether one parameter type is better than another. This will be amended to also dig into any tasklikes. *Note: this will give  back-compat breaks in some circumstances.*
 
 ```csharp
 f(async () => 3);
