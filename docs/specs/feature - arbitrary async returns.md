@@ -82,7 +82,7 @@ async ValueTask<int> TaskAsync(int delay)
 }
 ```
 
-__Rule 3: async lambdas.__ The rules for [anonymous function conversion](https://github.com/ljw1004/csharpspec/blob/gh-pages/conversions.md#anonymous-function-conversions) currently allow an async lambda to be converted to a delegate type whose return type is either `void` or `Task` or `Task<T>`; this will be changed to let them return `void` or any non-generic `Tasklike` or any generic `Tasklike<T>`.
+__Rule 3: async lambdas.__ The rules for [anonymous function conversion](https://github.com/ljw1004/csharpspec/blob/gh-pages/conversions.md#anonymous-function-conversions) currently allow an async lambda to be converted to a delegate type whose return type is either `void` or `Task` or `Task<T>`; this will be changed to let them its return type be `void` or any non-generic `Tasklike` or any generic `Tasklike<T>`.
 
 ```csharp
 Func<int, ValueTask<int>> lambda = async (x) => { return x; };
