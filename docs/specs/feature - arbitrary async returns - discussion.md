@@ -7,21 +7,24 @@
 
 **Question.** How does the compiler know which builder type to use for a given tasklike?
 ```csharp
-class MyTasklike { [EditorBrowsable(EditorBrowsableState.Never)] public static BuilderType GetAsyncMethodBuilder(); }
-// Option1: invoke "var builder = Tasklike.GetAsyncMethodBuilder()" --
+// Option1: via a static method on the tasklike.
+// We'd invoke "var builder = Tasklike.GetAsyncMethodBuilder()" --
 // but this doesn’t work with interfaces and doesn’t let you extend third-party types
+class MyTasklike { [EditorBrowsable(EditorBrowsableState.Never)] public static BuilderType GetAsyncMethodBuilder(); }
 
-public static class Extensions { public static void GetAsyncMethodBuilder(this MyTasklike dummy) => new BuilderType(); }
-// Option2: invoke "var builder = default(Tasklike).GetAsyncMethodBuilder();" and rely on extension method lookup --
+// Option2: via an extension method on the tasklike.
+// We'd invoke "var builder = default(Tasklike).GetAsyncMethodBuilder();" and rely on extension method lookup --
 // but this doesn’t work with instance methods
+public static class Extensions { public static void GetAsyncMethodBuilder(this MyTasklike dummy) => new BuilderType(); }
 
-[AsyncMethodBuilder(typeof(BuilderType))] class MyTasklike { ... }
-// Option3: an attribute on tasklike type itself is easy --
+// Option3: via an attribute on the tasklike type --
 // but this doesn't help with third-party types, and requires us to ship the attribute type in some assembly
+[AsyncMethodBuilder(typeof(BuilderType))] class MyTasklike { ... }
 
-[AsyncMethodBuilder(typeof(BuilderType))] async Task TestAsync() { ... }
-// Option4: an attribute on async method (rather than on tasklike type), to let you do the magic for Task-returning methods --
+// Option4: via an attribute on the async method (rather than on the tasklike type),
+// which would let you do the magic for Task-returning methods --
 // but this is cumbersome, doesn't work with lambda arguments or type inference, and again requires us to ship the attribute type
+[AsyncMethodBuilder(typeof(BuilderType))] async Task TestAsync() { ... }
 ```
 
 If we could have static methods on interfaces, then Option1 would be fine. If we could also have extension static methods, then Options 1+2 would sort of blend together. That would be ideal.
@@ -182,11 +185,6 @@ class IAsyncActionWithProgressAsync<T>
 }
 ```
 
-## Discuss: debugging support
-
-TODO
-
-
 
 ## Discuss: overload resolution with async lambdas
 
@@ -309,9 +307,54 @@ Task<int> arg; f(arg); // prefers "0" because it's a better function member (ide
 ```
 
 
+## Discuss: Debugging support
+
+Visual Studio has excellent support for async debugging -- the ability to debug-step-over an async method and do debug-step-out of an async method, the async callstack, and the Tasks window that shows all outstanding tasks. Users will at least expect the first two to work for tasklike-returning async methods; I'm not sure about the third.
+
+> If we ship this feature in C#7, I think it's likely that the debugging team won't have time to add support for it into the VS async debugging features. Should we delay the feature until we can do it in concert with the debugging team? Or should we ship it ahead of them, on the grounds that this will make it easier for them to add support in the future? (I'd be able to support async callstacks via a VSIX in the interim).
+
+Support for these debugger features will involve further changes to the async method builder pattern –- so if we ship the feature now, and debugger support comes out next release, then everyone who wrote their own tasklike will at that time likely want to augment their builder to light up debugger support. Here's how I suggest that async callstacks would work:
+
+* The Visual Studio IDE might use reflection to attempt to invoke the method `builder.GetCompletionActions()`, where the return type must either implement `System.Threading.Tasks.Task` or be `Action[]`.
+  * The idea is that if someone had retrieved the property `var tasklike = builder.Task`, and then called `tasklike.OnCompleted(action)` or `tasklike.UnsafeOnCompleted(action)`, then the IDE needs to be able to get a list of all those `action`s which are still pending.
+  * It's common for tasklike types to use a `System.Threading.Tasks.Task` under the hood. We don't have any way to extract the list of actions out of one, but the IDE does, and if you return an object of type `Task` then the IDE will use its techniques (a reflection-based call into `GetDelegatesFromContinuationObject`) to extract those actions and display the callstack.
+  * If you return `null` from this method, or if the method is absent or has the wrong return type, then the IDE will never be able to display async callstacks beyond the point of an async tasklike-returning method. This will make users unhappy.
+
+
+## Compilation notes and edge cases
+
+**Concrete tasklike**. The following kind of thing is conceptually impossible, because the compiler needs to know the *concrete* type of the tasklike that's being constructed (in order to construct it).
+```cs
+class C<T> where T : MyTasklike {
+    async T f() { } // error: the return type must be a concrete type
+}
+```
+
+**Incomplete builder**. The compiler should recognize the following method `f` as an async method that doesn't need a return statement, and should bind it accordingly. There is nothing wrong with the `async` modifier nor the absence of a `return` keyword. The fact that `MyTasklike`'s builder doesn't fulfill the pattern is an error that comes later on: it doesn't prevent the compiler from binding method `f`.
+```cs
+class C { async MyTasklike f() { } }
+class MyTasklike { public static string CreateAsyncMethodBuilder() => null; }
+```
+
+If the builder doesn't fulfill the pattern, well, that's an edge case. It should definitely give errors (like it does today e.g. if you have an async Task-returning method and target .NET4.0), but it doesn't matter to have high-quality errors (again it doesn't have high quality errors today). One unusual case of failed builder is where the builder has the wrong constraints on its generic type parameters. As far as I can tell, constraints aren't taken into account elsewhere in the compiler (the only other well known methods with generic parameters are below, and they're all in mscorlib, so no chance of them ever getting wrong)
+```
+System.Array.Empty
+System_Runtime_InteropServices_WindowsRuntime_WindowsRuntimeMarshal__AddEventHandler_T
+System_Runtime_InteropServices_WindowsRuntime_WindowsRuntimeMarshal__RemoveEventHandler_T
+System_Activator__CreateInstance_T
+System_Threading_Interlocked__CompareExchange_T
+Microsoft_VisualBasic_CompilerServices_Conversions__ToGenericParameter_T_Object
+```
+
+## Discuss: dynamic
+
+I propose we don't change the late-binder.
+
+There’s one odd case to note: when you make a dynamic method invocation, it does as much of the type inference as it can statically and the rest dynamically. We’ll end up in a state where the static part can handle tasklikes but the dynamic part can't.
+
 ## Discuss: IObservable
 
-It would be great if this feature -- along with async iterators -- could offer native support for producing `IObservable`.
+I wonder if this feature could offer native support for producing `IObservable`.
 
 > The question of *consuming* `IObservable` is different. To write imperative (pull-based) code that consumes `IObservable` (push-based) you need a buffer of some sort. That's orthogonal and I don't want to get derailed.
 
@@ -342,17 +385,10 @@ async IObservable<string> Option2()
 }
 ```
 
-I don't know which of these options feels best. Probably Option2, since Option1 is akin (in the words of Reed Copsey) to an iterator method with only a single yield. Pretty unusual.
+I think Option2 is best here; Option1 is akin (in the words of Reed Copsey) to an iterator method with only a single yield. Pretty unusual, and pretty easy to write already.
 
 I also don't know how cancellation should work. The scenario I imagine is that an `async IObservable` method has issued a web request, but then the subscriber disposes of its subscription. Presumably you'd want to cancel the web request immediately? Is disposal the primary (sole?) way for `IObservable` folks to cancel their aysnc sequences? Or do they prefer to have a separate stream which receives cancellation requests?
 
 Also, when you call `Dispose` on an iterator it's a bit different. By definition the iterator isn't currently executing. So all it does is resume iterator execution by going straight to the finally blocks. This might be good enough for async - e.g. the finally block could signal a cancellation that was being used throughout the method. (It could even await until the outstanding requests had indeed finished their cancellation, although this would be cumbersome to code.) But it's uneasy, and I wonder if a different form of cancellation is needed?
 
 We need guidance from `IObservable` subject matter experts.
-
-
-## Discuss: dynamic
-
-I propose we don't change the late-binder.
-
-There’s one odd case to note: when you make a dynamic method invocation, it does as much of the type inference as it can statically and the rest dynamically. We’ll end up in a state where the static part can handle tasklikes but the dynamic part can't.
