@@ -3,6 +3,45 @@
 *This document explores the design space for the feature proposal [arbitrary async returns](feature - arbitrary async returns.md).*
 
 
+## Discuss: back-compat breaks
+
+The tricky scenario is this:
+
+1. Using C#6 we write two overloads, and overload resolution prefers one candidate.
+2. Still using C#6, we upgrade one of our library references to a new version in which a type now becomes tasklike.
+3. We upgrade our code to C#7, and our existing code either starts to break with an ambiguity error, or picks a different overload altogether.
+
+In the following examples, suppose we are happily using `ValueTask` in our C#6 code, but the `ValueTask` NuGet package is updated to make it tasklike while we're still on C#6, and subsequently we update our code to C#7...
+
+```csharp
+// Example 1: in C#6 this code compiles fine and picks the first overload,
+// but in C#7 it picks the second for being better
+void f(Func<Task<double>> lambda)
+void f(Func<ValueTask<int>> lambda)
+f(async () => 3);
+
+// Example 2: in C#6 this code compiles fine and picks the first overload,
+// but in C#7 it gives an ambiguity error
+void g(Func<Task<int>> lambda)
+void g(Func<ValueTask<int>> lambda)
+g(async () => 3);
+
+// Example 3: in C#6 this code compiles fine and picks the first overload with T=Task<int>,
+// but in C#7 it picks the second with T=int for being more specific.
+void h<T>(Func<T> lambda)
+void h<T>(Func<ValueTask<T>> lambda)
+h(async () => 3);
+```
+
+Example 1 could be worked-around by saying that `Task<X>` is always better than `OtherTasklike<Y>` even if `Y` is better than `X`. But this would be pretty confusing.
+
+Example 2 could probably be worked around. I guess we'd first use the new overload resolution rules where all tasklikes are deemed identical for purposes of better betterness. If that leads to an ambiguity error, but one candidate has only `Task` while the other candidate has other `Tasklike`, then prefer the `Task` candidate. This workaround would be reasonable.
+
+Example 3 shouldn't be worked around because the new behavior will be pretty central to some useful idioms.
+
+I don't know how best to deal with this.
+
+
 ## Discuss: how to identify tasklikes and find their builder?
 
 **Question.** How does the compiler know which builder type to use for a given tasklike?
@@ -191,8 +230,6 @@ class IAsyncActionWithProgressAsync<T>
 ## Discuss: overload resolution with async lambdas
 
 There's a thorny issue around type inference and overload resolution. The proposal has one solution for it. I want to outline the problem and discuss alternatives. We have to build up to the problem with some examples...
-
-**[TODO: what's still absent from this spec is a discussion of "better betterness" and how [Exactly matching expression](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) and [Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target) rules in the spec are able to "dig into" the `Task<T>` type. Should those two places also be able to dig into `Tasklike<T>`?]**
 
 **Example1:** This is allowed and infers `T = int`. Effectively, type inference can "dig through" `Task<T>`. This is a really common pattern.
 ```csharp
