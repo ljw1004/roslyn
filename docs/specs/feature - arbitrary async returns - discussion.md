@@ -1,52 +1,47 @@
 # C# design rationale and alternatives: arbitrary async returns
 
-*This document explores the design space for the feature proposal [arbitrary async returns](feature - arbitrary async returns.md).
+*This document explores the design space for the feature proposal [arbitrary async returns](feature - arbitrary async returns.md).*
 
 
-## Discuss: connection between tasklike and builder
+## Discuss: how to identify tasklikes and find their builder?
 
 **Question.** How does the compiler know which builder type to use for a given tasklike?
 ```csharp
-// Option1: via attribute on the tasklike type itself
-[Tasklike(typeof(BuilderType))] class MyTasklike { ... }
+class MyTasklike { [EditorBrowsable(EditorBrowsableState.Never)] public static BuilderType GetAsyncMethodBuilder(); }
+// Option1: invoke "var builder = Tasklike.GetAsyncMethodBuilder()" --
+// but this doesn’t work with interfaces and doesn’t let you extend third-party types
 
-// Option2: via an attribute on the async method
-[Tasklike(typeof(BuilderType))] async Task TestAsync() { ... }
+public static class Extensions { public static void GetAsyncMethodBuilder(this MyTasklike dummy) => new BuilderType(); }
+// Option2: invoke "var builder = default(Tasklike).GetAsyncMethodBuilder();" and rely on extension method lookup --
+// but this doesn’t work with instance methods
 
-// Option3: via a dummy call to "var builder = default(Tasklike).GetBuilder();"
-public static class Extensions
-{
-    public static void GetBuilder(this MyTasklike dummy) => new BuilderType();
-}
+[AsyncMethodBuilder(typeof(BuilderType))] class MyTasklike { ... }
+// Option3: an attribute on tasklike type itself is easy --
+// but this doesn't help with third-party types, and requires us to ship the attribute type in some assembly
 
-// Option4: via a static method on the tasklike
-class MyTasklike
-{
-   [EditorBrowsable(EditorBrowsableState.Never)] public static BuilderType GetAsyncMethodBuilder();
-}
+[AsyncMethodBuilder(typeof(BuilderType))] async Task TestAsync() { ... }
+// Option4: an attribute on async method (rather than on tasklike type), to let you do the magic for Task-returning methods --
+// but this is cumbersome, doesn't work with lambda arguments or type inference, and again requires us to ship the attribute type
 ```
-Option2 has the slight benefit of being able to specify a builder even when you're returning the existing `Task`. But it's worse for the typical `ValueTask` usecase because it requires you to type out the attribute every single time you want to return `ValueTask`. It also doesn't work with lambdas, which don't have a place to hang that attribute.
 
-Option3 is ugly for expecting you to invoke an extension method on a null `this`, but does let you produce third-party types such as `IAsyncAction` or `IObservable`.
+If we could have static methods on interfaces, then Option1 would be fine. If we could also have extension static methods, then Options 1+2 would sort of blend together. That would be ideal.
 
-I'm wary of Option3 it's hard to implement: it means that the question of whether something is *tasklike* is no longer a property of the type itself, but is instead the result of an extension member lookup in a given context. It would mean that context has to be threaded through a lot of places that it isn't threaded through now.
+So far I've implemented Option1 because it's the cleanest. I also implemented Option3 with the attribute name `[Tasklike(...)]` to work with interfaces. I think I should implement all four for now, to experiment in the prototype, and I should change the attribute name to `[AsyncMethodBuilder]`.
 
-Options 3 and 4 have the slight advantage of not requiring `TasklikeAttribute` to be defined somewhere. They're also the most flexible about the generic arity of the builder: it need not be exactly the same as that of the tasklike.
+I'm worried that Option2 means  the question of whether something is *tasklike* is no longer a property of the type itself, but is instead the result of an extension member lookup in a given context. Will the context have to be threaded into more places than it is now? I'll have to experiment.
 
-Option 4 doesn't work with interfaces, since they can't have static members.
-
-I've adopted Option4 because it's cleanest, and also Option1 to allow it to work with interfaces. I don't know what is the best option.
+Options 1 and 2 have the slight advantage of not requiring an attribute to be define+shipped somewhere. They're also the most flexible about the generic arity of the builder: it need not be exactly the same as that of the tasklike.
 
 
-## Discuss: AwaitOnCompleted in the tasklike's builder?
+## Discuss: change the way builder, returned tasklike and state machine fit together?
 
-**Question:** Why does a tasklike's own builder decide how to implement `AwaitOnCompleted` and `AwaitUnsafeOnCompleted`?
+**Question.** Can we reduce number of heap allocations?
 
-*Option1:* We could say that a tasklike's builder is solely a **Tasklike completion source**, with methods `SetResult` and `SetException`; the job of `Await*OnCompleted` is delicate, and security critical, and shouldn't be up to each individual builder to re-implement.
+Currently it allocates two heap objects on the cold path – (1) the returned Task itself, (2) the boxed state machine struct, of which the builder struct is a field.
 
-*Option2:* We could say that a tasklike's builder has to deal with `Await*OnCompleted` as well.
+I wonder if we can do better and allocate only one heap object – the builder, which coincidentally is also the returned tasklike type, and which contains the state machine struct as a field?
 
-I picked Option2. I'm not really aware whether there are security implications to this. But it feels like good flexibility that a custom tasklike can control what happens before and after each await. I think we need expert advice on this matter.
+I’m investigating this avenue now because I think it will be important for efficiency of async iterators [[link](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20async%20iterators.md)]. If we ship C#7 using the two-allocation model, would we additional want to support the hypothesized one-allocation model in future?
 
 
 ## Discuss: genericity of tasklike and builder
@@ -115,6 +110,19 @@ var xk = k(async () => {return 3;});
 
 
 
+## Discuss: AwaitOnCompleted in the tasklike's builder?
+
+**Question:** Why does a tasklike's own builder decide how to implement `AwaitOnCompleted` and `AwaitUnsafeOnCompleted`?
+
+*Option1:* We could say that a tasklike's builder is solely a **Tasklike completion source**, with methods `SetResult` and `SetException`. The job of `Await*OnCompleted` would be hard-coded by the compiler+BCL in terms of how they save execution context and call `OnCompleted`.
+
+*Option2:* We could say that a tasklike's builder has to deal with `Await*OnCompleted` as well.
+
+I think that Option1 is more intellectually pure, and would help the problem that few people could write context-capturing code correctly.
+
+But I picked Option2 because I suspect, if you don't care for capturing, then Option2 allows for better runtime perf. It also allows for some nice functionality for an async method to communicate with its builder. 
+
+
 ## Discuss: async method interacts with the builder instance
 
 In the "async pattern", cancellation and progress are done with parameters:
@@ -148,15 +156,41 @@ async IAsyncActionWithProgress<string> TestAsync()
 }
 ```
 
-It would be possible to augment the language further, so that within the body of an async method it can use a contextual keyword like `async` to refer in a strongly-typed way its current builder, e.g. `var c = async.CancellationToken` or `async.Progress?.Invoke(i)`. That's an interesting idea that I want to explore more fully in the area of `IAsyncEnumerable`.
+I think we should make `async` a contextual keyword inside an async method. (Except: for async methods that return `Task` or `Task<T>` or `void`, there's no need to communicate with the builder, and it would be a breaking change if we start reserving the `async` keyword inside these methods.)
 
-I also wonder whether the *caller* could construct and manipulate the builder in code before the async method started, to give it some context. But I don't see any good way to write this.
+```csharp
+async IAsyncActionWithProgress<string> TestAsync(HttpClient client)
+{
+   await client.GetStringAsync(url, async.CancellationToken);
+   async.Progress?.Invoke("10%");
+}
+```
+
+This `async` keyword would be similar to `this` and `base`, but would refer to the *current instance of the async method*. Specifically, it would refer to the `Async` property of the current builder's instance:
+
+```csharp
+class IAsyncActionWithProgressBuilder<T>
+{
+   ...
+   public IAsyncActionWithProgressAsync<T> Async {get;}
+}
+
+class IAsyncActionWithProgressAsync<T>
+{
+   public CancellationToken CancellationToken {get;}
+   public IProgress<T> Progress {get;}
+}
+```
+
+## Discuss: debugging support
+
+TODO
 
 
 
 ## Discuss: overload resolution with async lambdas
 
-There's a thorny issue around overload resolution. The proposal has one solution for it. I want to outline the problem and discuss alternatives. We have to build up to the problem with some examples...
+There's a thorny issue around type inference and overload resolution. The proposal has one solution for it. I want to outline the problem and discuss alternatives. We have to build up to the problem with some examples...
 
 **Example1:** This is allowed and infers `T = int`. Effectively, type inference can "dig through" `Task<T>`. This is a really common pattern.
 ```csharp
@@ -315,3 +349,10 @@ I also don't know how cancellation should work. The scenario I imagine is that a
 Also, when you call `Dispose` on an iterator it's a bit different. By definition the iterator isn't currently executing. So all it does is resume iterator execution by going straight to the finally blocks. This might be good enough for async - e.g. the finally block could signal a cancellation that was being used throughout the method. (It could even await until the outstanding requests had indeed finished their cancellation, although this would be cumbersome to code.) But it's uneasy, and I wonder if a different form of cancellation is needed?
 
 We need guidance from `IObservable` subject matter experts.
+
+
+## Discuss: dynamic
+
+I propose we don't change the late-binder.
+
+There’s one odd case to note: when you make a dynamic method invocation, it does as much of the type inference as it can statically and the rest dynamically. We’ll end up in a state where the static part can handle tasklikes but the dynamic part can't.
