@@ -121,7 +121,7 @@ void f<U>(Func<int,ValueTask<U>> lambda); // currently: inferred lambda return t
 void f<U>(Func<int,ValueTask<U>> lambda); // proposal:  inferred lambda return type is ValueTask<int>, giving U = int
 ```
 
-__Rule 6: overload resolution.__ The overload resolution rules for [better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member) currently say that if neither candidate is better, and also the two applicable candidates have identical parameter types `{P1...Pn}` and `{Q1...Qn}` then we attempt  tie-breakers to determine which is the better one, otherwise it is an ambiguity error. With this feature, this will be modified so that if neither candidate is better and also the parameter types are identical *up to tasklikes* then attempt the tie-breakers: in other words, for purposes of this identity comparison, all non-generic `Tasklike`s are deemed identical to each other, and all generic `Tasklike<T>`s for a given `T` are deemed identical to each other.
+__Rule 6: overload resolution tie-breakers.__ The overload resolution rules for [better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member) currently say that if neither candidate is better, and also the two applicable candidates have identical parameter types `{P1...Pn}` and `{Q1...Qn}` then we attempt  tie-breakers to determine which is the better one, otherwise it is an ambiguity error. With this feature, this will be modified so that if neither candidate is better and also the parameter types are identical *up to tasklikes* then attempt the tie-breakers: in other words, for purposes of this identity comparison, all non-generic `Tasklike`s are deemed identical to each other, and all generic `Tasklike<T>`s for a given `T` are deemed identical to each other.
 
 > For explanation of why the proposal is this way, and to see alternatives, please read the [Design rationale and alternatives](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns%20-%20discussion.md#discuss-overload-resolution-with-async-lambdas).
 
@@ -138,6 +138,15 @@ void g<T>(Func<ValueTask<T>> lambda)  // infers T = int [under rule 5 of the pro
 // Without rule 6 of the proposal, this would be an ambiguity error.
 // With rule 6, it treats the two candidates as identical, and prefers the second for being more specific.
 ```
+
+__Rule 7: overload resolution betterness.__ The overload resolution rules for [Exactly matching expression](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) and [Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target) both currently "dig into" the `Task<T>` type to recursively determine whether one parameter type is better than another. This will be amended to also dig into any tasklikes.
+
+```csharp
+f(async () => 3);
+void f(Func<Task<short>> lambda)      // applicable
+void f(Func<ValueTask<byte>> lambda)  // applicable and better, because byte is better than short
+```
+
 
 ## Semantics for execution of an async method
 
