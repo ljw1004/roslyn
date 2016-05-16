@@ -288,6 +288,58 @@ class MyTaskBuilder<T>
             CompileAndVerify(source, additionalRefs: new[] {MscorlibRef_v4_0_30316_17626}, expectedOutput: "1");
         }
 
+        [Fact]
+        public void AsyncTasklikeBetterness()
+        {
+            var source = @"
+using System;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
+
+class Program
+{
+    static char f1(Func<ValueTask<short>> lambda) => 's';
+    static char f1(Func<Task<byte>> lambda) => 'b';
+
+    static char f2(Func<Task<short>> lambda) => 's';
+    static char f2(Func<ValueTask<byte>> lambda) => 'b';
+
+    static char f3(Func<Task<short>> lambda) => 's';
+    static char f3(Func<Task<byte>> lambda) => 'b';
+
+    static char f4(Func<ValueTask<short>> lambda) => 's';
+    static char f4(Func<ValueTask<byte>> lambda) => 'b';
+
+    static void Main()
+    {
+        Console.Write(f1(async () => { await (Task)null; return 9; }));
+        Console.Write(f2(async () => { await (Task)null; return 9; }));
+        Console.Write(f3(async () => { await (Task)null; return 9; }));
+        Console.Write(f4(async () => { await (Task)null; return 9; }));
+    }
+
+}
+
+public class ValueTask<T>
+{
+    public static ValueTaskBuilder<T> CreateAsyncMethodBuilder() => null;
+}
+
+public class ValueTaskBuilder<T>
+{
+    public static ValueTaskBuilder<T> Create() => null;
+    public void SetStateMachine(IAsyncStateMachine stateMachine) { }
+    public void Start<TSM>(ref TSM stateMachine) where TSM : IAsyncStateMachine { }
+    public void AwaitOnCompleted<TA, TSM>(ref TA awaiter, ref TSM stateMachine) where TA : INotifyCompletion where TSM : IAsyncStateMachine { }
+    public void AwaitUnsafeOnCompleted<TA, TSM>(ref TA awaiter, ref TSM stateMachine) where TA : ICriticalNotifyCompletion where TSM : IAsyncStateMachine { }
+    public void SetResult(T result) { }
+    public void SetException(Exception ex) { }
+    public ValueTask<T> Task => null;
+}
+";
+            CompileAndVerify(source, additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "bbbb");
+        }
+
 
         [Fact]
         public void AsyncLambdas()
