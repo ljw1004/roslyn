@@ -29,9 +29,9 @@ public static class Extensions { public static void GetAsyncMethodBuilder(this M
 
 If we could have static methods on interfaces, then Option1 would be fine. If we could also have extension static methods, then Options 1+2 would sort of blend together. That would be ideal.
 
-So far I've implemented Option1 because it's the cleanest. I also implemented Option3 with the attribute name `[Tasklike(...)]` to work with interfaces. I think I should implement all four for now, to experiment in the prototype, and I should change the attribute name to `[AsyncMethodBuilder]`.
+I'm worried that Option2 means  the question of whether something is *tasklike* is no longer a property of the type itself, but is instead the result of an extension member lookup in a given context. Is it scary that context might now affect the outcome of overload resolution and betterness? In the compiler will the context have to be threaded into more places than it is now? I'll have to experiment.
 
-I'm worried that Option2 means  the question of whether something is *tasklike* is no longer a property of the type itself, but is instead the result of an extension member lookup in a given context. Will the context have to be threaded into more places than it is now? I'll have to experiment.
+So far I've implemented Option1 because it's the cleanest. I also implemented Option3 with the attribute name `[Tasklike(...)]` to work with interfaces. I think I should implement all four for now, to experiment in the prototype, and I should change the attribute name to `[AsyncMethodBuilder]`.
 
 Options 1 and 2 have the slight advantage of not requiring an attribute to be define+shipped somewhere. They're also the most flexible about the generic arity of the builder: it need not be exactly the same as that of the tasklike.
 
@@ -191,6 +191,8 @@ class IAsyncActionWithProgressAsync<T>
 ## Discuss: overload resolution with async lambdas
 
 There's a thorny issue around type inference and overload resolution. The proposal has one solution for it. I want to outline the problem and discuss alternatives. We have to build up to the problem with some examples...
+
+**[TODO: what's still absent from this spec is a discussion of "better betterness" and how [Exactly matching expression](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) and [Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target) rules in the spec are able to "dig into" the `Task<T>` type. Should those two places also be able to dig into `Tasklike<T>`?]**
 
 **Example1:** This is allowed and infers `T = int`. Effectively, type inference can "dig through" `Task<T>`. This is a really common pattern.
 ```csharp
