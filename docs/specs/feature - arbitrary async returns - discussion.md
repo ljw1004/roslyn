@@ -47,6 +47,7 @@ I wonder if we can do better and allocate only one heap object – the builder, 
 
 I’m investigating this avenue now because I think it will be important for efficiency of async iterators [[link](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20async%20iterators.md)]. If we ship C#7 using the two-allocation model, would we additional want to support the hypothesized one-allocation model in future?
 
+Here's similar investigation by [@bbary](https://github.com/bbarry): [Zero allocations ValueTaskEnumerator](https://gist.github.com/bbarry/0fca79b6ac8f9ea642a768024560aaa5)
 
 ## Discuss: genericity of tasklike and builder
 
