@@ -52,28 +52,59 @@ async InstrumentedTask TestAsync()
 	await Task.Delay(20);
 }
 ```
-As another example, user [ckimes89](https://github.com/ckimes89) implemented a C# version of Haskell's `Maybe` monad with `do` notation: [[link](https://github.com/ckimes89/arbitrary-async-return-nullable/)]
+Some other examples: implement a C# version of Haskell's `Maybe` monad with `do` notation [[link](https://github.com/ckimes89/arbitrary-async-return-nullable/)]; implement async iterator methods [[link](https://github.com/ckimes89/arbitrary-async-return-nullable/blob/list-tasklike/NullableTaskLike/ListTaskLike.cs)].
 
 
 # Proposal
 
-Define:
+__Rule 1: Tasklike.__ Define:
 * A *non-generic tasklike* is any non-generic type with a single public static method `CreateAsyncMethodBuilder()`, or the type `System.Threading.Tasks.Task`.
 * A *generic tasklike* is any generic type with arity 1 with the same method, or the type `System.Threading.Tasks.Task<T>`.
 
-> We can surely figure out a good-enough mechanism for identifying tasks as tasklike. I've written this proposal with one possibility (above) and have outlined other options [here](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns%20-%20discussion.md#discuss-connection-between-tasklike-and-builder): (1) attribute on type, (2) attribute on async method, (3) extension method, (4) static method.
+```csharp
+struct ValueTask<T>
+{
+   [EditorBrowsable(EditorBrowsableState.Never)] public static ValueTaskBuilder<T> CreateAsyncMethodBuilder() { ... }
+   ...
+}
+```
 
-The rules for [async functions](https://github.com/ljw1004/csharpspec/blob/gh-pages/classes.md#async-functions) currently allow an async method to return either `void` or `Task` or `Task<T>`; this will be changed to allow it to return either `void`, or any non-generic `Tasklike`, or generic `Tasklike<T>`.
+> This uses a static method `CreateAsyncMethodBuilder()` to distinguish a Tasklike type and locate its builder. I've also suggested some other techniques [here](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns%20-%20discussion.md#discuss-connection-between-tasklike-and-builder): (1) static method, (2) extension method, (3) attribute on tasklike type, (4) attribute on async method. I believe at least one technique will be best, but I don't know which one
 
-The rules for [evaluation of task-returning async functions](https://github.com/ljw1004/csharpspec/blob/gh-pages/classes.md#evaluation-of-a-task-returning-async-function) currently talk in general terms about "generating an instance of the returned task type" and "initially incomplete state" and "moved out of the incomplete state". These will be changed to spell out how that returned tasklike is constructed and how its state is transitioned, as detailed below.
+__Rule 2: async methods.__ The rules for [async functions](https://github.com/ljw1004/csharpspec/blob/gh-pages/classes.md#async-functions) currently allow an async method to return either `void` or `Task` or `Task<T>`; this will be changed to allow it to return either `void`, or any non-generic `Tasklike`, or generic `Tasklike<T>`.
 
-The overload resolution rules for [better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member) currently say that if neither candidate is better, and also the two applicable candidates have identical parameter types `{P1...Pn}` and `{Q1...Qn}` then we attempt  tie-breakers to determine which is the better one, otherwise it is an ambiguity error. With this feature, this will be modified so that if neither candidate is better and also the parameter types are identical *up to tasklikes* then attempt the tie-breakers: in other words, for purposes of this identity comparison, all non-generic `Tasklike`s are deemed identical to each other, and all generic `Tasklike<T>`s for a given `T` are deemed identical to each other.
+```csharp
+async ValueTask<int> TaskAsync(int delay)
+{
+   await Task.Delay(delay);
+   return 10;
+}
+```
 
-> For explanation of why the proposal is this way, and to see alternatives, please read the [Design rationale and alternatives](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns%20-%20discussion.md#discuss-overload-resolution-with-async-lambdas).
+__Rule 3: async lambdas.__ The rules for [anonymous function conversion](https://github.com/ljw1004/csharpspec/blob/gh-pages/conversions.md#anonymous-function-conversions) currently allow an async lambda to be converted to a delegate type whose return type is either `void` or `Task` or `Task<T>`; this will be changed to let them return `void` or any non-generic `Tasklike` or any generic `Tasklike<T>`.
 
-The rules for [anonymous function conversion](https://github.com/ljw1004/csharpspec/blob/gh-pages/conversions.md#anonymous-function-conversions) currently allow an async lambda to be converted to a delegate type whose return type is either `void` or `Task` or `Task<T>`; this will be changed to let them return `void` or any non-generic `Tasklike` or any generic `Tasklike<T>`.
+```csharp
+Func<int, ValueTask<int>> lambda = async (x) => { return x; };
+```
 
-The [inferred return type](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#inferred-return-type) of a lambda expression currently takes into account the parameter types of the delegate to which the lambda is being converted. With this feature, the inferred return type of an async lambda now also takes into account the return type of that delegate:
+
+__Rule 4: evaluation of async functions.__ The rules for [evaluation of task-returning async functions](https://github.com/ljw1004/csharpspec/blob/gh-pages/classes.md#evaluation-of-a-task-returning-async-function) currently talk in general terms about "generating an instance of the returned task type" and "initially incomplete state" and "moved out of the incomplete state". These will be changed to spell out how that returned tasklike is constructed and how its state is transitioned, as detailed in the following subsection.
+
+```csharp
+struct ValueTaskBuilder<T>
+{
+    public static MyTaskBuilder<T> Create();
+    public void SetStateMachine(IAsyncStateMachine stateMachine);
+    public void Start<TSM>(ref TSM stateMachine);
+    public void AwaitOnCompleted<TA, TSM>(ref TA awaiter, ref TSM stateMachine) where TA:INotifyCompletion where TSM:IAsyncStateMachine;
+    public void AwaitUnsafeOnCompleted<TA, TSM>(ref TA awaiter, ref TSM stateMachine) where TA:ICriticalNotifyCompletion where TSM:IAsyncStateMachine;
+    public void SetResult(T result);
+    public void SetException(Exception ex);
+    public ValueTask<T> Task {get;}
+}
+```
+
+__Rule 5: inferred return type.__ The [inferred return type](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#inferred-return-type) of a lambda expression currently takes into account the parameter types of the delegate to which the lambda is being converted. With this feature, the inferred return type of an async lambda now also takes into account the return type of that delegate:
 * If the async lambda has inferred *result type* `void`:
   * if the return type of the delegate is `U` where `U` is a non-generic tasklike, then the inferred *return type* is `U`
   * otherwise the inferred *return type* is `Task`
@@ -81,6 +112,31 @@ The [inferred return type](https://github.com/ljw1004/csharpspec/blob/gh-pages/e
   * if the return type of the delegate is `U<V2>` where `U` is a generic tasklike, then the inferred *return type* is `U<V1>`
   * otherwise the inferred *return type* is `Task<V2>`
 
+```csharp
+f(async (x) => {return x;})
+void f<T>(Func<int,T> lambda);            // inferred lambda return type is Task<int>, giving T = Task<int>
+void f<U>(Func<int,Task<U>> lambda);      // inferred lambda return type is Task<int>, giving U = int
+void f<U>(Func<int,ValueTask<U>> lambda); // currently: inferred lambda return type is Task<int>, giving a type inference failure
+void f<U>(Func<int,ValueTask<U>> lambda); // proposal:  inferred lambda return type is ValueTask<int>, giving U = int
+```
+
+__Rule 6: overload resolution.__ The overload resolution rules for [better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member) currently say that if neither candidate is better, and also the two applicable candidates have identical parameter types `{P1...Pn}` and `{Q1...Qn}` then we attempt  tie-breakers to determine which is the better one, otherwise it is an ambiguity error. With this feature, this will be modified so that if neither candidate is better and also the parameter types are identical *up to tasklikes* then attempt the tie-breakers: in other words, for purposes of this identity comparison, all non-generic `Tasklike`s are deemed identical to each other, and all generic `Tasklike<T>`s for a given `T` are deemed identical to each other.
+
+> For explanation of why the proposal is this way, and to see alternatives, please read the [Design rationale and alternatives](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns%20-%20discussion.md#discuss-overload-resolution-with-async-lambdas).
+
+```csharp
+f(async () => 3); 
+void f<T>(Func<T> lambda)        // currently in C#6 infers T = Task<int>, and is applicable 
+void f<T>(Func<Task<T>> lambda)  // currently in C#6 infers T = int, and is applicable
+// Currently in C#6 you can write these two candidates, and it prefers the second more specific one
+// I want the same nice idiom to be available to ValueTask.
+
+g(async () => 3); 
+void g<T>(Func<T> lambda)             // infers T = Task<int> [as it always has], and is applicable
+void g<T>(Func<ValueTask<T>> lambda)  // infers T = int [under rule 3 of the proposal], and is applicable
+// Without rule 4 of the proposal, this would be an ambiguity error.
+// With rule 4, it treats the two candidates as identical, and prefers the second for being more specific.
+```
 
 **Semantics for execution of an async method**
 
@@ -107,7 +163,7 @@ In the case where the builder type is a struct, and `sm` is also a struct, it's 
 
 Visual Studio has excellent support for async debugging - the ability to debug-step-over an async method and do debug-step-out of an async method, the async callstack, and the Tasks window that shows all outstanding tasks. Users will at least expect the first two to work for tasklike-returning async methods; I'm not sure about the third.
 
-> If we decided to put arbitrary-async-returns into C#7, there's a strong possibility that the Visual Studio debugger would not *yet* be able to handle them. We could scrape by with a third-party debugger extension for a time, while we await  a subsequent release/update of VS to bring proper debugger support. When debugger support does eventually arrive, I bet that most tasklikes would need to be updated to take advantage of it.
+> If we decided to put arbitrary-async-returns into C#7, there's a strong possibility that the Visual Studio debugger would not *yet* be able to handle them. We could scrape by with a third-party debugger extension for a time, while we await a subsequent release/update of VS to bring proper debugger support. When debugger support does eventually arrive, I bet that most tasklikes would need to be updated to take advantage of it.
 
 For async callstacks:
 * The Visual Studio IDE might use reflection to attempt to invoke the method `builder.GetCompletionActions()`, where the return type must either implement `System.Threading.Tasks.Task` or be `Action[]`.
