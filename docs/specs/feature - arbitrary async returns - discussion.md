@@ -36,9 +36,9 @@ I'm worried that Option2 means  the question of whether something is *tasklike* 
 Options 1 and 2 have the slight advantage of not requiring an attribute to be define+shipped somewhere. They're also the most flexible about the generic arity of the builder: it need not be exactly the same as that of the tasklike.
 
 
-## Discuss: change the way builder, returned tasklike and state machine fit together?
+## Discuss: reduce number of heap allocations
 
-**Question.** Can we reduce number of heap allocations?
+**Question.** Can we reduce number of heap allocations on the cold path?
 
 Currently it allocates two heap objects on the cold path – (1) the returned Task itself, (2) the boxed state machine struct, of which the builder struct is a field.
 
