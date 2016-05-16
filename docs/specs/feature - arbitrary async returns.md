@@ -96,7 +96,7 @@ struct ValueTaskBuilder<T>
 {
     public static MyTaskBuilder<T> Create();
     public void SetStateMachine(IAsyncStateMachine stateMachine);
-    public void Start<TSM>(ref TSM stateMachine);
+    public void Start<TSM>(ref TSM stateMachine) where TSM:IAsyncStateMachine;
     public void AwaitOnCompleted<TA, TSM>(ref TA awaiter, ref TSM stateMachine) where TA:INotifyCompletion where TSM:IAsyncStateMachine;
     public void AwaitUnsafeOnCompleted<TA, TSM>(ref TA awaiter, ref TSM stateMachine) where TA:ICriticalNotifyCompletion where TSM:IAsyncStateMachine;
     public void SetResult(T result);
