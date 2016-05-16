@@ -35,6 +35,7 @@ I'm worried that Option2 means  the question of whether something is *tasklike* 
 
 Options 1 and 2 have the slight advantage of not requiring an attribute to be define+shipped somewhere. They're also the most flexible about the generic arity of the builder: it need not be exactly the same as that of the tasklike.
 
+Will we need to implement multiple options to cover all the use-cases? (If so, what should happen if two different options give different builders?!)
 
 ## Discuss: reduce number of heap allocations
 
