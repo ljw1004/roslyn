@@ -15,7 +15,7 @@ __Option1:__ *"All other things being equal, async lambdas still gravitate towar
 
 __Option2:__ *"We almost always prefer `Task`, even if other things aren't equal, so as to preserve back-compat as much as possible."* (I think this option is best). 
 
-__Option3:__ *"100% back-compat is so important that we will disallow async lambdas from being tasklike, since they are the sole source of back-compat issues."*
+__Option3:__ *"100% back-compat is so important that we will disallow async lambdas from returning non-Task tasklikes, since async lambdas are the sole source of back-compat issues."*
 
 
 ```csharp
