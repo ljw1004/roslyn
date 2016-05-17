@@ -28,7 +28,7 @@ f(async () => 3);
   * `TasklikeA<S1> > TasklikeB<S2>` if `(TasklikeA == TasklikeB || TasklikeA == Task<T>) && S1 > S2`.
   * Both option seem fine. The second follows the general principle of gravitating towards `Task` but its extra complexity doesn't seem worth it.
 * We could decide to keep the old behavior:
-  * `TasklikeA<S1> > TasklikeB<S2>` if `(TasklikeA == Task && TasklikeB != Task) || S1 > S2`.
+  * `TasklikeA<S1> > TasklikeB<S2>` if `(TasklikeA == Task && TasklikeB != Task<T> && S1 > S2) || (TaskLikeA == TaskLikeB && S1 > S2)`.
   * This option feels arbitrary and confusing. It's not motivated by the general principle outlined above, because in this case all other things *are not equal*.
 * We could decide to keep silent change in behavior, as proposed:
   * `TasklikeA<S1> > TasklikeB<S2>` if `S1 > S2`.
