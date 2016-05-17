@@ -7,7 +7,7 @@
 
 The tricky scenario is this:
 
-1. Using C#6 we write two overloads, and overload resolution prefers one candidate.
+1. Using C#6 we write two overloads, and overload resolution prefers one applicable candidate.
 2. Still using C#6, we upgrade one of our library references to a new version in which a type now becomes tasklike.
 3. We upgrade to C#7, and our existing code either starts to break with an ambiguity error, or picks a different overload altogether.
 
@@ -63,6 +63,34 @@ h(async () => 3);
 * We could decide that the new behavior is better:
   * (If we did keep the old behavior in Example 2, then we'd need to ensure that the test for "identical up to tasklikes" is done *before* asking whether one candidate is better than the other candidate).
 
+
+The above three examples seem simplistic. Let's consider *exhaustively* all the cases where two candidates are applicable but differ in their tasklikes...
+```csharp
+// CASE1: the argument is an async lambda, candidate1 parameter is a delegate with one tasklike return type,
+// and candidate2 parameter is a delegate with a different tasklike return type:
+void f(Func<Task<int>> lambda)
+void f(Func<ValueTask<int>> lambda)
+f(async () => 3);
+
+// CASE2: the argument is a type with user-defined conversion operator to the two candidate parameter types,
+// and the two candidate parameter types differ in tasklikes:
+void f(IEnumerable<Task<string>> x)
+void f(IEnumerable<ValueTask<string>> x)
+f(new C());
+class C {
+  public static implicit operator IEnumerable<Task<string>> (C c) => null;
+  public static implicit operator IEnumerbale<ValueTask<string>> (C c) => null;
+}
+
+// CASE3: one candidate parameter type involves Task<T>, and the other candidate parameter type involves
+// a user-created subtype SubTask<T>
+void f(IEnumerable<Task<string>> x)
+void f(IEnumerable<SubTask<string>> x)
+f(new SubTask<string>());
+class SubTask<T> : Task<T> { ... }
+```
+
+I think these are the only three cases where two candidates can both be applicable and yet still differ solely in their tasklikes. I think that Case1 will be the most common, but the other two cases are so rare we don't need to consider them.
 
 ## Discuss: how to identify tasklikes and find their builder?
 
