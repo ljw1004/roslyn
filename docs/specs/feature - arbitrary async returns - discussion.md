@@ -7,30 +7,30 @@
 
 The tricky scenario is this:
 
-1. Using C#6 we write two overloads, and overload resolution prefers one applicable candidate.
-2. Still using C#6, we upgrade one of our library references to a new version in which a type now becomes tasklike.
-3. We upgrade to C#7, and our existing code either starts to break with an ambiguity error, or picks a different overload altogether.
+1. Using C#6 we are happily using `ValueTask`, and we write two overloads, and overload resolution prefers the non-ValueTask candidate.
+2. Still using C#6, we upgrade to use the latest NuGet `ValueTask` library which is where `ValueTask` becomes tasklike.
+3. We upgrade to C#7, and our existing overload resolution either starts to break with an ambiguity error, or silently picks a different overload.
 
-In the following examples, suppose we are happily using `ValueTask` in our C#6 code, but the `ValueTask` NuGet package is updated to make it tasklike while we're still on C#6, and subsequently we update to C#7.
+__Option1:__ *"All other things being equal, async lambdas still gravitate towards `Task`."* (You can see this already in type inference).
 
-> I think there's a general principle of the feature (at least in type inference) to keep in mind: *"all other things being equal, async lambdas still gravitate towards `Task`".*
+__Option2:__ *"We almost always prefer `Task`, even if other things aren't equal, so as to preserve back-compat as much as possible."* (I think this option is best). 
+
+__Option3:__ *"100% back-compat is so important that we will disallow async lambdas from being tasklike, since they are the sole source of back-compat issues."*
+
 
 ```csharp
 // Example 1: in C#6 this code compiles fine and picks the first overload,
-// but in C#7 it picks the second for being better
+// but under the proposal it picks the second for being better
 void f(Func<Task<double>> lambda)
 void f(Func<ValueTask<int>> lambda)
 f(async () => 3);
 ```
 * __Example 1__ is caused by the proposed change to [Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target) to make it dig into tasklikes: it says that `TasklikeA<S1> > TasklikeB<S2>` if `S1 > S2`. (I'm writing `>` for "is a better conversion target than").
-* We could make it an ambiguity error (rather than a silent change in behavior), in two possible ways:
-  * `TasklikeA<S1> > TasklikeB<S2>` if `TasklikeA == TasklikeB && S1 > S2`.
-  * `TasklikeA<S1> > TasklikeB<S2>` if `(TasklikeA == TasklikeB || TasklikeA == Task<T>) && S1 > S2`.
-  * Both option seem fine. The second follows the general principle of gravitating towards `Task` but its extra complexity doesn't seem worth it.
-* We could decide to keep the old behavior:
-  * `TasklikeA<S1> > TasklikeB<S2>` if `(TasklikeA == Task && TasklikeB != Task<T> && S1 > S2) || (TaskLikeA == TaskLikeB && S1 > S2)`.
-  * This option feels arbitrary and confusing. It's not motivated by the general principle outlined above, because in this case all other things *are not equal*.
-* We could decide to keep silent change in behavior, as proposed:
+* We could decide (option2) to preserve the old behavior.
+  * "Task is better than nontask; only dig in if two tasklikes are identical". `Task<S1> > NonTask<S2>` if `S1 > S2`, and also `TasklikeA<S1> > TasklikeA<S2>` if `S1 > S2`
+  * "Task is better than nontask; but dig in even for different tasklikes". `Task<S1> > NonTask<S2>` if `S1 > S2`, and also `NonTaskA<S1> > NonTaskB<S2>` if `S1 > S2`
+  * Both options seem fine. I prefer the first because it will give ambiguity errors where things really do look ambiguous.
+* We could decide (option1) to keep the proposed silent change in behavior, since "not all other things" are equal...
   * `TasklikeA<S1> > TasklikeB<S2>` if `S1 > S2`.
 
 
@@ -42,11 +42,11 @@ void g(Func<ValueTask<int>> lambda)
 g(async () => 3);
 ```
 * __Example 2__ is caused by a new conversion of async lambda to non-task-returning delegate, which always introduces ambiguity errors because it always allows more candidates to become available.
-* We could decide to keep the old behavior:
+* We could decide to keep the old behavior (option1/2):
   * If the new overload resolution rules result in ambiguity error, but one of the candidates didn't involve any conversion from async lambda to a non-task-returning delegate, then prefer that candidate
   * This is in keeping with the general principle to prefer `Task` over other tasklikes, all other things being equal.
 * We could decide to keep the new ambiguity error:
-  * I'm not so keen on this ambiguity error. I prefer the C#6 behavior.
+  * I don't like this ambiguity error.
 
   
 ```csharp
@@ -57,32 +57,43 @@ void h<T>(Func<ValueTask<T>> lambda)
 h(async () => 3);
 ```
 * __Example 3__ is caused by the new [Better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member) rule which says that if two candidates `{P1...Pn}` and `{Q1...Qn}` are identical *up to tasklikes* then we should use the "more-specific" tie-breaker.
-* We could decide to keep the old behavior:
+* We could decide to keep the old behavior (option2):
   * This would fall out by keeping the old behavior for Example 2 (which prefers `Func<Task<int>>` over `Func<ValueTask<int>>`)
   * I think the old behavior is concretely bad in this case because it doesn't let folks write the idioms they want for `ValueTask`.
-* We could decide that the new behavior is better:
-  * (If we did keep the old behavior in Example 2, then we'd need to ensure that the test for "identical up to tasklikes" is done *before* asking whether one candidate is better than the other candidate).
+* We could decide that the new behavior is better (option1):
+  * Given the change motivated by Example 2, then we'd need to ensure that the test for "identical up to tasklikes" is done *before* asking whether one candidate is better than the other candidate.
 
 
-The above three examples seem simplistic. Let's consider *exhaustively* all the cases where two candidates are applicable but differ in their tasklikes...
+The above three examples seem simplistic. Let's try to consider *exhaustively* all the cases where two candidates are applicable but differ in their tasklikes...
 ```csharp
-// CASE1: the argument is an async lambda, candidate1 parameter is a delegate with one tasklike return type,
+// CASE A: the argument is an async lambda, candidate1 parameter is a delegate with one tasklike return type,
 // and candidate2 parameter is a delegate with a different tasklike return type:
 void f(Func<Task<int>> lambda)
 void f(Func<ValueTask<int>> lambda)
 f(async () => 3);
 
-// CASE2: the argument is a type with user-defined conversion operator to the two candidate parameter types,
+// CASE B: there's an implicit conversion between Task and a tasklike, and the candidate parameter is
+// a top-level tasklike
+void f(Task<string> x)
+void f(ValueTask<string> x)
+f(x);
+struct ValueTask<T>
+{
+  public static implicit operator Task<T> (ValueTask<T> vt) => ...;
+  public static implicit operator ValueTask<T> (Task<T> t) => ...;
+}
+
+// CASE C: the argument is a type with user-defined conversion operator to the two candidate parameter types,
 // and the two candidate parameter types differ in tasklikes:
 void f(IEnumerable<Task<string>> x)
 void f(IEnumerable<ValueTask<string>> x)
 f(new C());
 class C {
   public static implicit operator IEnumerable<Task<string>> (C c) => null;
-  public static implicit operator IEnumerbale<ValueTask<string>> (C c) => null;
+  public static implicit operator IEnumerable<ValueTask<string>> (C c) => null;
 }
 
-// CASE3: one candidate parameter type involves Task<T>, and the other candidate parameter type involves
+// CASE D: one candidate parameter type involves Task<T>, and the other candidate parameter type involves
 // a user-created subtype SubTask<T>
 void f(IEnumerable<Task<string>> x)
 void f(IEnumerable<SubTask<string>> x)
@@ -90,7 +101,22 @@ f(new SubTask<string>());
 class SubTask<T> : Task<T> { ... }
 ```
 
-I think these are the only three cases where two candidates can both be applicable and yet still differ solely in their tasklikes. I think that Case1 will be the most common, but the other two cases are so rare we don't need to consider them.
+I think that cases A and B will be common.
+
+
+## Discuss: the fate of `Task` vs `ValueTask`
+
+* Is it best practice to use `ValueTask` rather than `Task` in all cases?
+* Why would someone prefer `Task`?
+* Will we get to a situation where every code review gets told "Use `ValueTask` here instead"?
+* Will the use of `Task` look like a rookie mistake, and every single developer on the planet have to get educated about `ValueTask`? 
+* Will there be pressure on the BCL to support `ValueTask.WhenAll` and similar combinators?
+* To help bridge those combinators, will there be implicit conversions from `ValueTask` to `Task`? Or vice-versa?
+* Will there be pressure on the BCL to support a non-genereric `ValueTask` (in addition to the generic `ValueTask<T>`) just for symmetry, even though such a thing is pointless?
+* Will there be pressure on frameworks like ASP.NET and xUnit to support `ValueTask` as well?
+
+I'd started this investigation with the belief that folks would largely continue to use `Task`, and that `ValueTask` would be just a small niche thing of use only to those who aggressively pursue performance. But I'm beginning to question that...
+
 
 ## Discuss: how to identify tasklikes and find their builder?
 
