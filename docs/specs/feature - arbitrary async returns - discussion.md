@@ -57,6 +57,7 @@ h(async () => 3);
 * We could decide to keep the old behavior (option2):
   * This would fall out by keeping the old behavior for Example 2 (which prefers `Func<Task<int>>` over `Func<ValueTask<int>>`)
   * I think the old behavior is concretely bad in this case because it doesn't let folks write the idioms they want for `ValueTask`.
+  * We could keep the old behavior by only allowing tasklikes for methods, not for async lambdas. Frankly, if we can't accept the break shown in Example3, then I think the value of tasklike async lambdas would be so reduced that it'd be better not to have them at all. (We'd still get a lot of value out of the feature even without async lambdas).
 * We could decide that the new behavior is better (option1):
   * Given the change motivated by Example 2, then we'd need to ensure that the test for "identical up to tasklikes" is done *before* asking whether one candidate is better than the other candidate.
   * Alternatively, we could modify the change in Example2 so it only counts `Task` a better conversion target if that particular `Task` was actually present in the candidate -- not just arising from type inference.
