@@ -62,6 +62,7 @@ h(async () => 3);
   * I think the old behavior is concretely bad in this case because it doesn't let folks write the idioms they want for `ValueTask`.
 * We could decide that the new behavior is better (option1):
   * Given the change motivated by Example 2, then we'd need to ensure that the test for "identical up to tasklikes" is done *before* asking whether one candidate is better than the other candidate.
+  * Alternatively, we could modify the change in Example2 so it only counts `Task` a better conversion target if that particular `Task` was actually present in the candidate -- not just arising from type inference.
 
 
 The above three examples seem simplistic. Let's try to consider *exhaustively* all the cases where two candidates are applicable but differ in their tasklikes...
