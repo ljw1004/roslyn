@@ -122,24 +122,26 @@ I'd started this investigation with the belief that folks would largely continue
 
 **Question.** How does the compiler know which builder type to use for a given tasklike?
 ```csharp
-// Option1: via a static method on the tasklike.
-// We'd invoke "var builder = Tasklike.GetAsyncMethodBuilder()" --
-// but this doesn’t work with interfaces and doesn’t let you extend third-party types
-class MyTasklike { [EditorBrowsable(EditorBrowsableState.Never)] public static BuilderType GetAsyncMethodBuilder(); }
+// Option1: via a static method on the tasklike (but doesn't work on interfaces nor third-party types)
+class MyTasklike
+{
+  [EditorBrowsable(EditorBrowsableState.Never)]
+  public static BuilderType GetAsyncMethodBuilder() => ...;
+}
 
-// Option2: via an extension method on the tasklike.
-// We'd invoke "var builder = default(Tasklike).GetAsyncMethodBuilder();" and rely on extension method lookup --
-// but this doesn’t work with instance methods
-public static class Extensions { public static void GetAsyncMethodBuilder(this MyTasklike dummy) => new BuilderType(); }
+// Option2: via an extension method on the tasklike (but is ugly!)
+public static class Extensions
+{
+   public static void GetAsyncMethodBuilder(this MyTasklike dummy) => ...;
+}
 
-// Option3: via an attribute on the tasklike type --
-// but this doesn't help with third-party types, and requires us to ship the attribute type in some assembly
-[AsyncMethodBuilder(typeof(BuilderType))] class MyTasklike { ... }
+// Option3: via an attribute on the tasklike type (but is ugly! and requires us to ship the attribute)
+[AsyncMethodBuilder(typeof(BuilderType))]
+class MyTasklike { ... }
 
-// Option4: via an attribute on the async method (rather than on the tasklike type),
-// which would let you do the magic for Task-returning methods --
-// but this is cumbersome, doesn't work with lambda arguments or type inference, and again requires us to ship the attribute type
-[AsyncMethodBuilder(typeof(BuilderType))] async Task TestAsync() { ... }
+// Option4: via an attribute on the async method (rather than on the tasklike type)
+[AsyncMethodBuilder(typeof(BuilderType))]
+async Task TestAsync() { ... }
 ```
 
 If we could have static methods on interfaces, then Option1 would be fine. If we could also have extension static methods, then Options 1+2 would sort of blend together. That would be ideal.
@@ -151,6 +153,29 @@ So far I've implemented Option1 because it's the cleanest. I also implemented Op
 Options 1 and 2 have the slight advantage of not requiring an attribute to be define+shipped somewhere. They're also the most flexible about the generic arity of the builder: it need not be exactly the same as that of the tasklike.
 
 Will we need to implement multiple options to cover all the use-cases? (If so, what should happen if two different options give different builders?!)
+
+Option4 would let you use a custom builder for a `Task`-returning method (though you could achieve almost the same effect by declaring your own subtype of `Task` instead). I also don't see how it could work with lambdas.
+
+Options1/2 would allow the builder to be partly interface-based. We'd say that a non-generic type `Tasklike` is tasklike if it has a static method `GetAsyncMethodBuilder` whose return type implements `IAsyncMethodBuilder<Tasklike>`, and a generic type `Tasklike<T>` is tasklike if that return type implements `IAsyncMethodBuilder<T,Tasklike<T>>`:
+```csharp
+class MyTasklike<T>
+{
+  public static MyAsyncBuilder<T> GetAsyncMethodBuilder() => new MyAsyncBuilder<T>;
+}
+
+interface IAsyncMethodBuilder<TResult,TTask>
+{
+   void SetResult(TResult result);
+   TTask Task {get;}
+   ...
+}
+
+struct MyAsyncBuilder<T> : IAsyncMethodBuilder<T, MyTasklike<T>>
+{
+   ...
+}
+```
+
 
 ## Discuss: reduce number of heap allocations
 
