@@ -19,10 +19,9 @@ __Option3:__ *"100% back-compat is so important that we will disallow async lamb
 
 
 ```csharp
-// Example 1: in C#6 this code compiles fine and picks the first overload,
-// but under the proposal it picks the second for being better
-void f(Func<Task<double>> lambda)
-void f(Func<ValueTask<int>> lambda)
+// Example 1
+void f(Func<Task<double>> lambda)    // <-- preferred in C#6
+void f(Func<ValueTask<int>> lambda)  // <-- preferred under the proposal
 f(async () => 3);
 ```
 * __Example 1__ is caused by the proposed change to [Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target) to make it dig into tasklikes: it says that `TasklikeA<S1> > TasklikeB<S2>` if `S1 > S2`. (I'm writing `>` for "is a better conversion target than").
@@ -35,10 +34,9 @@ f(async () => 3);
 
 
 ```csharp
-// Example 2: in C#6 this code compiles fine and picks the first overload,
-// but in C#7 it gives an ambiguity error
-void g(Func<Task<int>> lambda)
-void g(Func<ValueTask<int>> lambda)
+// Example 2
+void g(Func<Task<int>> lambda)       // <-- applicable candidate in C#6
+void g(Func<ValueTask<int>> lambda)  // <-- newly applicable under the proposal, causing an ambiguity error
 g(async () => 3);
 ```
 * __Example 2__ is caused by a new conversion of async lambda to non-task-returning delegate, which always introduces ambiguity errors because it always allows more candidates to become available.
@@ -50,10 +48,9 @@ g(async () => 3);
 
   
 ```csharp
-// Example 3: in C#6 this code compiles fine and picks the first overload with T=Task<int>,
-// but in C#7 it picks the second with T=int for being more specific.
-void h<T>(Func<T> lambda)
-void h<T>(Func<ValueTask<T>> lambda)
+// Example 3
+void h<T>(Func<T> lambda)             // <-- preferred in C#6
+void h<T>(Func<ValueTask<T>> lambda)  // <-- preferred under the proposal
 h(async () => 3);
 ```
 * __Example 3__ is caused by the new [Better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member) rule which says that if two candidates `{P1...Pn}` and `{Q1...Qn}` are identical *up to tasklikes* then we should use the "more-specific" tie-breaker.
