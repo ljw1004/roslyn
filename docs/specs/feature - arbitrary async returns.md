@@ -110,7 +110,7 @@ __Rule 5: inferred return type.__ The [inferred return type](https://github.com/
   * otherwise the inferred *return type* is `Task`
 * Otherwise, the async lambda has inferred *result type* `V1`:
   * if the return type of the delegate is `U<V2>` where `U` is a generic tasklike, then the inferred *return type* is `U<V1>`
-  * otherwise the inferred *return type* is `Task<V2>`
+  * otherwise the inferred *return type* is `Task<V1>`
 
 ```csharp
 f(async (x) => {return x;})
