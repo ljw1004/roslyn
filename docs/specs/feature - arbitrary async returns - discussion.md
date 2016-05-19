@@ -194,12 +194,12 @@ Here's similar investigation by [@bbary](https://github.com/bbarry): [Zero alloc
 
 *This  might be possible for top-level methods, but it doesn't work with lambdas and type inference. Let's spell out the related question about type inference:*
 
-**Question.** When the compiler does generic type inference with the argument `async()=>{return 3;}` being passed to a method `void f(Func<MyTask<T>> lambda)`, how does it go from `3` to `int` to `T = int` ?
+**Question.** When the compiler does generic type inference with the argument `async()=>{return 3;}` being passed to a method `void f<T>(Func<MyTask<T>> lambda)`, how does it go from `3` to `int` to `T = int` ?
 
 
 **Current behavior:** Let's start with the traditional behavior for `Task`:
 ```csharp
-void f(Func<Task<T>> lambda);
+void f<T>(Func<Task<T>> lambda);
 var xf = f(async () => {return 3;});
 ```
 * This infers `T = int`
@@ -443,7 +443,7 @@ Task<int> arg; f(arg); // prefers "0" because the other candidate fails type inf
 
 // EXAMPLE 3
 void f<T>(Task<T> t) => 0;
-void f(MyTaks<int> t) => 1;
+void f(MyTask<int> t) => 1;
 Task<int> arg; f(arg); // prefers "0" because it's a better function member (identity)
 ```
 
