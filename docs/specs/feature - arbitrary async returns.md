@@ -94,11 +94,13 @@ __I should be able to migrate my existing API over to `ValueTask`, maintaining s
 
 ```csharp
 // TEST b1: change async return type to be ValueTask
-async Task<int> b1()       //  <-- library v1 has this API
-async ValueTask<int> b1()  //  <-- library v2 has this API *instead*
-var t = b1();              //  <-- This code should work on either version of the library
+async Task<int> b1()         //  <-- library v1 has this API
+async ValueTask<int> b1()    //  <-- library v2 has this API *instead*
+var t = b1();                //  <-- This code will of course work in v2 of the library
+Task<int> t = b1();          //  <-- Either this code should work in v2 of the library...
+Task<int> t = b1().AsTask(); //  <-- or this one as a workaround
 
-// TEST b2: add an overload where async return type is ValueTask. (this test is doomed to fail).
+// TEST b2: add an overload where async return type is ValueTask. [this test is doomed to fail]
 async Task<int> b2()       //  <-- library v1 has this API
 async ValueTask<int> b2()  //  <-- library v2 has this API *additionally*
 var t = b2();              //  <-- This code should work on either version of the library
@@ -112,19 +114,22 @@ b3(vt.AsTask());           //  <-- or, if not, then at least this one should
 // TEST b4: change parameter to be ValueTask
 void b4(Task<int> t)         //  <-- library v1 has this API
 void b4(ValueTask<int> t)    //  <-- library v2 has this API *instead*
-b4(default(Task<int>>);      //  <-- This code should work on either version of the library
-b4(default(ValueTask<int>>); //  <-- This code should work on v2 of the library
+Task<int> t;
+b4(t);                       //  <-- Either this code should work in v2 of the library...
+b4(t.AsValueTask());         //  <-- or this one as a workaround
 
 // TEST b5: add an overload where parameter is ValueTask
 void b5(Task<int> t)         //  <-- library v1 has this API
 void b5(ValueTask<int> t)    //  <-- library v2 has this API *additionally*
-b5(default(Task<int>>);      //  <-- This code should work on either version of the library and pick Task overload
-b5(default(ValueTask<int>>); //  <-- This code should work on v2 of the library and pick ValueTask overload
+Task<int> t;
+b5(t);                       //  <-- This could should work in v2 of the library and pick the Task overload
+ValueTask<int> vt;
+b5(vt);                      //  <-- This code should work in v2 of the library and pick ValueTask overload
 
 // TEST b6: change parameter to be Func<ValueTask>
 void b6(Func<Task<int>> lambda)      //  <-- library v1 has this API
 void b6(Func<ValueTask<int>> lambda) //  <-- library v2 has this API *instead*
-b6(async () => 3);                   //  <-- This code should work on either version of the library
+b6(async () => 3);                   //  <-- This code should work in v2 of the library
 
 // TEST b7: change parameter to be Func<ValueTask>
 void b7(Func<Task<int>> lambda)      //  <-- library v1 has this API
