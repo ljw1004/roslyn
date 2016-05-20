@@ -181,12 +181,12 @@ void f<T>(Func<ValueTask<T>> lambda)  // infers T = int [under rule 4 of the pro
 // With rule 5b, both candidates are identical up-to-tasklikes, and the second is more specific
 ```
 
-__Rule 5c: overload resolution betterness.__ The overload resolution rules currently "dig into" `Task<T>` for determining betterness... In [Exactly matching expression](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) it says that an async lambda *exactly matches* a delegate with return type `Task<Y>` if its return statement operands exactly match `Y`; this will be amended to say it exactly matches a delegate with return type `Tasklike<Y>`. Likewise the rules for [Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target) say that `Task<S1>` is a better conversion target than `Task<S2>` (written `Task<S1> > Task<S2>`) if `S1 > S2`; this will be amended to say that `Task<S1> > TasklikeB<S2>` for any `S1,S2`, and also `TasklikeA<S1> > TaslikeA<S2>` if `S1 > S2`.
+__Rule 5c: overload resolution betterness.__ The overload resolution rules currently "dig into" `Task<T>` for determining betterness... In [Exactly matching expression](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) it says that an async lambda *exactly matches* a delegate with return type `Task<Y>` if its return statement operands exactly match `Y`; this will be amended to say it exactly matches a delegate with return type `Tasklike<Y>`. Likewise the rules for [Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target) say that `Task<S1>` is a better conversion target than `Task<S2>` (written `Task<S1> > Task<S2>`) if `S1 > S2`; this will be amended to say that `TasklikeA<S1> > TaslikeB<S2>` if `S1 > S2`.
 
 ```csharp
 f(async () => 3);
-void f(Func<Task<double>> lambda)     // applicable and better, because it's Task
-void f(Func<ValueTask<int>> lambda)
+void f(Func<MyTask<double>> lambda)     
+void f(Func<ValueTask<int>> lambda)     // better
 ```
 
 
