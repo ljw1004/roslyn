@@ -164,25 +164,19 @@ Neither option is perfect. We'll rank how well each option satisfies the unit te
 
 ### Overload resolution option 1: treat tasklikes same as `Task`
 
-__Rule 6: overload resolution tie-breakers.__ The overload resolution rules for [better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member) currently say that if neither candidate is better, and also the two applicable candidates have identical parameter types `{P1...Pn}` and `{Q1...Qn}` then we attempt  tie-breakers to determine which is the better one, otherwise it is an ambiguity error. With this feature, this will be modified so that if neither candidate is better and also the parameter types are identical *up to tasklikes* then attempt the tie-breakers: in other words, for purposes of this identity comparison, all non-generic `Tasklike`s are deemed identical to each other, and all generic `Tasklike<T>`s for a given `T` are deemed identical to each other.
+__Rule 5a: overload resolution tie-breakers.__ The overload resolution rules for [better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member) currently say that if neither candidate is better, and also the two applicable candidates have identical parameter types `{P1...Pn}` and `{Q1...Qn}` then we attempt  tie-breakers to determine which is the better one, otherwise it is an ambiguity error. With this feature, this will be modified so that if neither candidate is better and also the parameter types are identical *up to tasklikes* then attempt the tie-breakers: in other words, for purposes of this identity comparison, all non-generic `Tasklike`s are deemed identical to each other, and all generic `Tasklike<T>`s for a given `T` are deemed identical to each other.
 
 > For explanation of why the proposal is this way, and to see alternatives, please read the [Design rationale and alternatives](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns%20-%20discussion.md#discuss-overload-resolution-with-async-lambdas); there's also a discussion about how it relates to [back-compat breaks and mitigations](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns%20-%20discussion.md#discuss-back-compat-breaks).
 
 ```csharp
 f(async () => 3); 
-void f<T>(Func<T> lambda)        // currently in C#6 infers T = Task<int>, and is applicable 
-void f<T>(Func<Task<T>> lambda)  // currently in C#6 infers T = int, and is applicable
-// Currently in C#6 you can write these two candidates, and it prefers the second more specific one
-// I want the same nice idiom to be available to ValueTask.
-
-g(async () => 3); 
-void g<T>(Func<T> lambda)             // infers T = Task<int> [as it always has], and is applicable
-void g<T>(Func<ValueTask<T>> lambda)  // infers T = int [under rule 5 of the proposal], and is applicable
-// Without rule 6 of the proposal, this would be an ambiguity error.
-// With rule 6, it treats the two candidates as identical, and prefers the second for being more specific.
+void f<T>(Func<T> lambda)             // infers T = Task<int> [as it always has], and is applicable
+void f<T>(Func<ValueTask<T>> lambda)  // infers T = int [under rule 5 of the proposal], and is applicable
+// Without rule 5a of the proposal, this would be an ambiguity error.
+// With rule 5a, it treats the two candidates as identical, and prefers the second for being more specific.
 ```
 
-__Rule 7: overload resolution betterness.__ The overload resolution rules currently "dig into" `Task<T>` for determining betterness... In [Exactly matching expression](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) it says that an async lambda *exactly matches* a delegate with return type `Task<Y>` if its return statement operands exactly match `Y`; this will be amended to say it exactly matches a delegate with return type `Tasklike<Y>`. Likewise the rules for [Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target) say that `Task<S1>` is a better conversion target than `Task<S2>` (written `Task<S1> > Task<S2>`) if `S1 > S2`; this will be amended to say that `TasklikeA<S1> > TasklikeB<S2>` if `S1 > S2`. (See also this [further discussion](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns%20-%20discussion.md#discuss-back-compat-breaks) about the back-compat ramifications).
+__Rule 5b: overload resolution betterness.__ The overload resolution rules currently "dig into" `Task<T>` for determining betterness... In [Exactly matching expression](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) it says that an async lambda *exactly matches* a delegate with return type `Task<Y>` if its return statement operands exactly match `Y`; this will be amended to say it exactly matches a delegate with return type `Tasklike<Y>`. Likewise the rules for [Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target) say that `Task<S1>` is a better conversion target than `Task<S2>` (written `Task<S1> > Task<S2>`) if `S1 > S2`; this will be amended to say that `TasklikeA<S1> > TasklikeB<S2>` if `S1 > S2`. (See also this [further discussion](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns%20-%20discussion.md#discuss-back-compat-breaks) about the back-compat ramifications).
 
 ```csharp
 f(async () => 3);
