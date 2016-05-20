@@ -164,7 +164,7 @@ Neither option is perfect. We'll rank how well each option satisfies the unit te
 
 ### Overload resolution option 1: treat tasklikes same as `Task`
 
-__Rule 5a: overload resolution betterness.__ The overload resolution rules for [better conversion from expression](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-from-expression) currently list two things that make the implicit conversion `CP` from `Ex` to `Px` better than the implicit conversion `CQ` from `Ex` to `Qx`. We will add a third: if `Ex` is an async lambda, and the unexpanded parameter type `Rx` is a delegate whose return type is `Task` or `Task<T>`, and the unexpanded parameter type `Qx` is not, then `CP` is a better conversion than `CQ`.
+__Rule 5a: overload resolution betterness.__ The overload resolution rules for [better conversion from expression](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-from-expression) currently list two things that make the implicit conversion `CP` from `Ex` to `Px` better than the implicit conversion `CQ` from `Ex` to `Qx`. We will add a third: if `Ex` is an async lambda, and the unexpanded parameter type `Rx` of `Px` is a delegate whose return type is `Task` or `Task<T>`, and the unexpanded parameter type `Sx` of `Qx` is not, then `CP` is a better conversion than `CQ`.
 
 ```csharp
 f(async () => 3);
