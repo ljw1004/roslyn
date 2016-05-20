@@ -164,6 +164,8 @@ Neither option is perfect. We'll rank how well each option satisfies the unit te
 
 ### Overload resolution option 1: treat tasklikes same as `Task`
 
+***TODO: fix this up to prefer `Task` over other Tasklikes***
+
 __Rule 5a: overload resolution tie-breakers.__ The overload resolution rules for [better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member) currently say that if neither candidate is better, and also the two applicable candidates have identical parameter types `{P1...Pn}` and `{Q1...Qn}` then we attempt  tie-breakers to determine which is the better one, otherwise it is an ambiguity error. With this feature, this will be modified so that if neither candidate is better and also the parameter types are identical *up to tasklikes* then attempt the tie-breakers: in other words, for purposes of this identity comparison, all non-generic `Tasklike`s are deemed identical to each other, and all generic `Tasklike<T>`s for a given `T` are deemed identical to each other.
 
 > For explanation of why the proposal is this way, and to see alternatives, please read the [Design rationale and alternatives](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns%20-%20discussion.md#discuss-overload-resolution-with-async-lambdas); there's also a discussion about how it relates to [back-compat breaks and mitigations](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns%20-%20discussion.md#discuss-back-compat-breaks).
