@@ -111,23 +111,29 @@ async ValueTask<int> f()  //  <-- library v2 has this API *additionally*
 var t = f();              //  <-- This code should work on either version of the library
 
 // TEST 2c: change argument to be ValueTask
+void f(Task<int> t)       //  <-- library has this API
+ValueTask<int> vt;
+f(vt);                    //  <-- This code should work...
+f(vt.AsTask());           //  <-- or, if not, then at least this one should
+
+// TEST 2d: change parameter to be ValueTask
 void f(Task<int> t)         //  <-- library v1 has this API
 void f(ValueTask<int> t)    //  <-- library v2 has this API *instead*
 f(default(Task<int>>);      //  <-- This code should work on either version of the library
 f(default(ValueTask<int>>); //  <-- This code should work on v2 of the library
 
-// TEST 2d: add an overload where argument is ValueTask
+// TEST 2e: add an overload where parameter is ValueTask
 void f(Task<int> t)         //  <-- library v1 has this API
 void f(ValueTask<int> t)    //  <-- library v2 has this API *additionally*
 f(default(Task<int>>);      //  <-- This code should work on either version of the library and pick Task overload
 f(default(ValueTask<int>>); //  <-- This code should work on v2 of the library and pick ValueTask overload
 
-// TEST 2e: change argument to be Func<ValueTask>
+// TEST 2f: change parameter to be Func<ValueTask>
 void f(Func<Task<int>> lambda)      //  <-- library v1 has this API
 void f(Func<ValueTask<int>> lambda) //  <-- library v2 has this API *instead*
 f(async () => 3);                   //  <-- This code should work on either version of the library
 
-// TEST 2f: change argument to be Func<ValueTask>
+// TEST 2g: change parameter to be Func<ValueTask>
 void f(Func<Task<int>> lambda)      //  <-- library v1 has this API
 void f(Func<ValueTask<int>> lambda) //  <-- library v2 has this API *additionally*
 f(async () => 3);                   //  <-- This code work on either version of the library and pick ValueTask overload in v2
