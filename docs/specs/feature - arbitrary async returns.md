@@ -160,7 +160,7 @@ We have two different options on the table for overload resolution:
 1. Make overload resolution treat tasklikes the same as it treats `Task` today. But to avoid back-compat-breaks, prefer candidates which don't involve converting an async lambda to a non-Task-returning delegate parameter. 
 2. Don't change overload resolution. Instead rely upon `ValueTask` having an implicit conversion to `Task`.
 
-Neither option is perfect. We'll rank how well each option satisfies the unit tests. ***TODO: fill out this table...***
+Neither option is perfect. We'll rank how well each option satisfies the unit tests. ***TODO: fill out this table...*** (The table has multiple columns for whether there's an implicit conversion between `ValueTask` and `Task`, since that has a big effect on overload resolution.)
 
 |      | Option1 | Option1 with VT->T | Option1 with VT<-T | Option1 with VT<->T | Option2 with VT->T |
 |------|---------|--------------------|--------------------|---------------------|--------------------|
