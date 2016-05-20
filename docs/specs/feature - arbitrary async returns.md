@@ -56,7 +56,7 @@ Some other examples: implement a C# version of Haskell's `Maybe` monad with `do`
 
 # Key uses cases
 
-These use-cases are written out as unit-tests at the end of this proposal.
+These use-cases are written out as unit-tests at the [end of this proposal](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#unit-tests).
 
 1. I should be able to use `ValueTask` as a wholesale replacement for `Task`, every bit as good. [[link](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-should-be-able-to-use-valuetask-as-a-wholesale-replacement-for-task-every-bit-as-good)]
 2. I should be able to migrate my existing API over to `ValueTask`, maintaining source-compatibility and binary-compatibility. [[link](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-should-be-able-to-migrate-my-existing-api-over-to-valuetask)]
