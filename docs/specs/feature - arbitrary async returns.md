@@ -59,103 +59,96 @@ Some other examples: implement a C# version of Haskell's `Maybe` monad with `do`
 __I should be able to use `ValueTask` as a wholesale replacement for `Task`, every bit as good.__
 
 ```csharp
-// TEST 1a: async methods should be able to return ValueTask
-async Task<int> f() { ... }         //  <-- I can write this in C#6 using Task
-async ValueTask<int> f() { ... }    //  <-- I should be able to write this instead with the same method body
+// TEST a1: async methods should be able to return ValueTask
+async Task<int> a1() { ... }         //  <-- I can write this in C#6 using Task
+async ValueTask<int> a1() { ... }    //  <-- I should be able to write this instead with the same method body
 
-// TEST 1b: async lambdas should be able to return ValueTask
-Func<Task<int>> f = async () => { ... };       //  <-- I can write this in C#6
-Func<ValueTask<int>> f = async () => { ... };  //  <-- I should be able to write this instead
+// TEST a2: async lambdas should be able to return ValueTask
+Func<Task<int>> a2 = async () => { ... };       //  <-- I can write this in C#6
+Func<ValueTask<int>> a2 = async () => { ... };  //  <-- I should be able to write this instead
 
-// TEST 1c: async lambdas are applicable in overload resolution
-f(async () => 3);
-void f(Func<Task<int>> lambda)       //  <-- This can be invoked in C#6
-void f(Func<ValueTask<int>> lambda)  //  <-- If I write this instead, it should be invokable
+// TEST a3: async lambdas are applicable in overload resolution
+a3(async () => 3);
+void a3(Func<Task<int>> lambda)       //  <-- This can be invoked in C#6
+void a3(Func<ValueTask<int>> lambda)  //  <-- If I write this instead, it should be invokable
 
-// TEST 1d: async lambda type inference should work with ValueTask like it does with Task
-f(async () => 3);
-void f<T>(Func<Task<T>> lambda)       //  <-- This infers T=int
-void f<T>(Func<ValueTask<T>> lambda)  //  <-- If I write this instead, it should also infer T=int
+// TEST a4: async lambda type inference should work with ValueTask like it does with Task
+a4(async () => 3);
+void a4<T>(Func<Task<T>> lambda)       //  <-- This infers T=int
+void a4<T>(Func<ValueTask<T>> lambda)  //  <-- If I write this instead, it should also infer T=int
 
-// TEST 1e: able to write overloads that take sync and async lambdas
-void f<T>(Func<T> lambda)
-void f<T>(Func<Task<T>> lambda)
-f(() => 3);                             //  <-- This invokes the first overload in C#6
-f(async () => 3);                       //  <-- This invokes the second overload in C#6
-void g<T>(Func<T> lambda)
-void g<T>(Func<ValueTask<T>> lambda)
-g(() => 3);                             //  <-- This should invoke the first overload
-g(async () => 3);                       //  <-- This should invoke the second overload
+// TEST a5: able to write overloads that take sync and async lambdas
+void a5<T>(Func<T> lambda)
+void a5<T>(Func<ValueTask<T>> lambda)
+a5(() => 3);                             //  <-- This should invoke the first overload
+a5(async () => 3);                       //  <-- This should invoke the second overload
 
-// TEST 1f: able to dig in to better candidate
-void f(Func<Task<int>> lambda)
-void f(Func<Task<double>> lambda)
-f(async () => 3);                       //  <-- This prefers the "int" candidate in C#6
-void g(Func<ValueTask<int>> lambda)
-void f(Func<ValueTask<int>> lambda)
-g(async () => 3);                       //  <-- This should also prefer the "int" candidate
+// TEST a6: able to dig in to better candidate
+void a6(Func<ValueTask<int>> lambda)
+void a6(Func<ValueTask<double>> lambda)
+a6(async () => 3);                       //  <-- This should also prefer the "int" candidate
 ```
 
 
 __I should be able to migrate my existing API over to `ValueTask`, maintaining source-compatibility and binary-compatibility.__
 
 ```csharp
-// TEST 2a: change async return type to be ValueTask
-async Task<int> f()       //  <-- library v1 has this API
-async ValueTask<int> f()  //  <-- library v2 has this API *instead*
-var t = f();              //  <-- This code should work on either version of the library
+// TEST b1: change async return type to be ValueTask
+async Task<int> b1()       //  <-- library v1 has this API
+async ValueTask<int> b1()  //  <-- library v2 has this API *instead*
+var t = b1();              //  <-- This code should work on either version of the library
 
-// TEST 2b: add an overload where async return type is ValueTask. (this test is doomed to fail).
-async Task<int> f()       //  <-- library v1 has this API
-async ValueTask<int> f()  //  <-- library v2 has this API *additionally*
-var t = f();              //  <-- This code should work on either version of the library
+// TEST b2: add an overload where async return type is ValueTask. (this test is doomed to fail).
+async Task<int> b2()       //  <-- library v1 has this API
+async ValueTask<int> b2()  //  <-- library v2 has this API *additionally*
+var t = b2();              //  <-- This code should work on either version of the library
 
-// TEST 2c: change argument to be ValueTask
-void f(Task<int> t)       //  <-- library has this API
+// TEST b3: change argument to be ValueTask
+void b3(Task<int> t)       //  <-- library has this API
 ValueTask<int> vt;
-f(vt);                    //  <-- This code should work...
-f(vt.AsTask());           //  <-- or, if not, then at least this one should
+b3(vt);                    //  <-- This code should work...
+b3(vt.AsTask());           //  <-- or, if not, then at least this one should
 
-// TEST 2d: change parameter to be ValueTask
-void f(Task<int> t)         //  <-- library v1 has this API
-void f(ValueTask<int> t)    //  <-- library v2 has this API *instead*
-f(default(Task<int>>);      //  <-- This code should work on either version of the library
-f(default(ValueTask<int>>); //  <-- This code should work on v2 of the library
+// TEST b4: change parameter to be ValueTask
+void b4(Task<int> t)         //  <-- library v1 has this API
+void b4(ValueTask<int> t)    //  <-- library v2 has this API *instead*
+b4(default(Task<int>>);      //  <-- This code should work on either version of the library
+b4(default(ValueTask<int>>); //  <-- This code should work on v2 of the library
 
-// TEST 2e: add an overload where parameter is ValueTask
-void f(Task<int> t)         //  <-- library v1 has this API
-void f(ValueTask<int> t)    //  <-- library v2 has this API *additionally*
-f(default(Task<int>>);      //  <-- This code should work on either version of the library and pick Task overload
-f(default(ValueTask<int>>); //  <-- This code should work on v2 of the library and pick ValueTask overload
+// TEST b5: add an overload where parameter is ValueTask
+void b5(Task<int> t)         //  <-- library v1 has this API
+void b5(ValueTask<int> t)    //  <-- library v2 has this API *additionally*
+b5(default(Task<int>>);      //  <-- This code should work on either version of the library and pick Task overload
+b5(default(ValueTask<int>>); //  <-- This code should work on v2 of the library and pick ValueTask overload
 
-// TEST 2f: change parameter to be Func<ValueTask>
-void f(Func<Task<int>> lambda)      //  <-- library v1 has this API
-void f(Func<ValueTask<int>> lambda) //  <-- library v2 has this API *instead*
-f(async () => 3);                   //  <-- This code should work on either version of the library
+// TEST b6: change parameter to be Func<ValueTask>
+void b6(Func<Task<int>> lambda)      //  <-- library v1 has this API
+void b6(Func<ValueTask<int>> lambda) //  <-- library v2 has this API *instead*
+b6(async () => 3);                   //  <-- This code should work on either version of the library
 
-// TEST 2g: change parameter to be Func<ValueTask>
-void f(Func<Task<int>> lambda)      //  <-- library v1 has this API
-void f(Func<ValueTask<int>> lambda) //  <-- library v2 has this API *additionally*
-f(async () => 3);                   //  <-- This code should work in v2 and pick the ValueTask overload, for efficiency
+// TEST b7: change parameter to be Func<ValueTask>
+void b7(Func<Task<int>> lambda)      //  <-- library v1 has this API
+void b7(Func<ValueTask<int>> lambda) //  <-- library v2 has this API *additionally*
+b7(async () => 3);                   //  <-- This code should work in v2 and pick the ValueTask overload, for efficiency
 ```
 
 __I don't want to break backwards-compatibility.__ In particular, suppose I have a C#6 app that references a NuGet library in which `ValueTask` is already tasklike. When I upgrade to C#7, I don't want the behavior of my code to change.
 
 ```csharp
-// TEST 3a: don't now prefer a previously-inapplicable ValueTask due to digging in
-void f(Func<Task<double>> lambda)
-void f(Func<ValueTask<int>> lambda)
-f(async () => 3);                    //  <-- When I upgrade, this should still pick the Task overload
+// TEST c1: don't now prefer a previously-inapplicable ValueTask due to digging in
+void c1(Func<Task<double>> lambda)
+void c1(Func<ValueTask<int>> lambda)
+c1(async () => 3);                    //  <-- When I upgrade, this should still pick the Task overload
 
-// TEST 3b: don't introduce ambiguity errors about newly applicable candidates
-void f(Func<Task<int>> lambda)
-void f(Func<ValueTask<int>> lambda)
-f(async () => 3);                    //  <-- When I upgrade, this should still pick the Task overload [conflicts with Test 2g]
+// TEST c2: don't introduce ambiguity errors about newly applicable candidates
+void c2(Func<Task<int>> lambda)
+void c2(Func<ValueTask<int>> lambda)
+c2(async () => 3);                    //  <-- When I upgrade, this should still pick the Task overload [conflicts with Test b7]
 
-// TEST 3c: don't now prefer a previously-inappicable ValueTask due to tie-breakers [conflicts with Test 1e]
-void f<T>(Func<T> lambda)
-void f<T>(Func<ValueTask<T>> lambda)
-f(async () => 3);                     //  <-- When I upgrade, this should still pick the first overload
+// TEST c3: don't now prefer a previously-inappicable ValueTask due to tie-breakers [conflicts with Test a5]
+void c3<T>(Func<T> lambda)
+void c3<T>(Func<ValueTask<T>> lambda)
+c3(async () => 3);                     //  <-- When I upgrade, this should still pick the first overload
 ```
 
 
