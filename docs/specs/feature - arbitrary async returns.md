@@ -136,7 +136,7 @@ f(async () => 3);                   //  <-- This code should work on either vers
 // TEST 2g: change parameter to be Func<ValueTask>
 void f(Func<Task<int>> lambda)      //  <-- library v1 has this API
 void f(Func<ValueTask<int>> lambda) //  <-- library v2 has this API *additionally*
-f(async () => 3);                   //  <-- This code work on either version of the library and pick ValueTask overload in v2
+f(async () => 3);                   //  <-- This code should work in v2 and pick the ValueTask overload, for efficiency
 ```
 
 __I don't want to break backwards-compatibility.__ In particular, suppose I have a C#6 app that references a NuGet library in which `ValueTask` is already tasklike. When I upgrade to C#7, I don't want the behavior of my code to change.
@@ -150,7 +150,7 @@ f(async () => 3);                    //  <-- When I upgrade, this should still p
 // TEST 3b: don't introduce ambiguity errors about newly applicable candidates
 void f(Func<Task<int>> lambda)
 void f(Func<ValueTask<int>> lambda)
-f(async () => 3);                    //  <-- When I upgrade, this should still pick the Task overload
+f(async () => 3);                    //  <-- When I upgrade, this should still pick the Task overload [conflicts with Test 2g]
 
 // TEST 3c: don't now prefer a previously-inappicable ValueTask due to tie-breakers [conflicts with Test 1e]
 void f<T>(Func<T> lambda)
