@@ -64,7 +64,7 @@ These use-cases are written out as unit-tests at the [end of this proposal](http
 
 
 
-# Proposal1
+# Proposal
 
 __Rule 1: Tasklike.__ Define:
 * A *non-generic tasklike* is any non-generic type with a single public static method `CreateAsyncMethodBuilder()`, or the type `System.Threading.Tasks.Task`.
@@ -97,8 +97,25 @@ __Rule 3: async lambdas.__ The rules for [anonymous function conversion](https:/
 Func<int, ValueTask<int>> lambda = async (x) => { return x; };
 ```
 
+__Rule 4: inferred return type.__ The [inferred return type](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#inferred-return-type) of a lambda expression currently takes into account the parameter types of the delegate to which the lambda is being converted. To make type inference aware of the new conversion in Rule 3, the inferred return type of an async lambda now also takes into account the return type of that delegate:
+* If the async lambda has inferred *result type* `void`:
+  * if the return type of the delegate is `U` where `U` is a non-generic tasklike, then the inferred *return type* is `U`
+  * otherwise the inferred *return type* is `Task`
+* Otherwise, the async lambda has inferred *result type* `V1`:
+  * if the return type of the delegate is `U<V2>` where `U` is a generic tasklike, then the inferred *return type* is `U<V1>`
+  * otherwise the inferred *return type* is `Task<V1>`
 
-__Rule 4: evaluation of async functions.__ The rules for [evaluation of task-returning async functions](https://github.com/ljw1004/csharpspec/blob/gh-pages/classes.md#evaluation-of-a-task-returning-async-function) currently talk in general terms about "generating an instance of the returned task type" and "initially incomplete state" and "moved out of the incomplete state". These will be changed to spell out how that returned tasklike is constructed and how its state is transitioned, as detailed in the following subsection.
+```csharp
+f(async (x) => {return x;})
+void f<T>(Func<int,T> lambda);            // inferred lambda return type is Task<int>, giving T = Task<int>
+void f<U>(Func<int,Task<U>> lambda);      // inferred lambda return type is Task<int>, giving U = int
+void f<U>(Func<int,ValueTask<U>> lambda); // currently: inferred lambda return type is Task<int>, giving a type inference failure
+void f<U>(Func<int,ValueTask<U>> lambda); // proposal:  inferred lambda return type is ValueTask<int>, giving U = int
+```
+
+__Rule 5: overload resolution.__ There are two different options for how to deal with overload resolution. They're dealt with below.
+
+__Rule 6: evaluation of async functions.__ The rules for [evaluation of task-returning async functions](https://github.com/ljw1004/csharpspec/blob/gh-pages/classes.md#evaluation-of-a-task-returning-async-function) currently talk in general terms about "generating an instance of the returned task type" and "initially incomplete state" and "moved out of the incomplete state". These will be changed to spell out how that returned tasklike is constructed and how its state is transitioned, as detailed in the following subsection.
 
 ```csharp
 struct ValueTaskBuilder<T>
@@ -114,21 +131,38 @@ struct ValueTaskBuilder<T>
 }
 ```
 
-__Rule 5: inferred return type.__ The [inferred return type](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#inferred-return-type) of a lambda expression currently takes into account the parameter types of the delegate to which the lambda is being converted. With this feature, the inferred return type of an async lambda now also takes into account the return type of that delegate:
-* If the async lambda has inferred *result type* `void`:
-  * if the return type of the delegate is `U` where `U` is a non-generic tasklike, then the inferred *return type* is `U`
-  * otherwise the inferred *return type* is `Task`
-* Otherwise, the async lambda has inferred *result type* `V1`:
-  * if the return type of the delegate is `U<V2>` where `U` is a generic tasklike, then the inferred *return type* is `U<V1>`
-  * otherwise the inferred *return type* is `Task<V1>`
+## Semantics for execution of an async method
 
-```csharp
-f(async (x) => {return x;})
-void f<T>(Func<int,T> lambda);            // inferred lambda return type is Task<int>, giving T = Task<int>
-void f<U>(Func<int,Task<U>> lambda);      // inferred lambda return type is Task<int>, giving U = int
-void f<U>(Func<int,ValueTask<U>> lambda); // currently: inferred lambda return type is Task<int>, giving a type inference failure
-void f<U>(Func<int,ValueTask<U>> lambda); // proposal:  inferred lambda return type is ValueTask<int>, giving U = int
-```
+The *builder type* of a tasklike is the return type of the static method `CreateAsyncMethodBuilder()` on that tasklike. (Except: if the tasklike is `System.Threading.Tasks.Task` then the builder type is `System.Runtime.CompilerService.AsyncTaskMethodBuilder`; and if the tasklike is `System.Threading.Tasks.Task<T>` then the builder type is `System.Runtime.CompilerService.AsyncTaskMethodBuilder<T>`).
+
+When an async tasklike-returning method is invoked,
+* It creates `var sm = new CompilerGeneratedStateMachineType()` where this compiler-generated state machine type represents the async tasklike method, and may be a struct or a class, and has a field `BuilderType builder` in it, and implements `IAsyncStateMachine`.
+* It assigns `sm.builder = Tasklike.CreateAsyncMethodBuilder()` to create a new instance of the builder type. (Except: if the tasklike is `Task` or `Task<T>`, then the assignment is instead `sm.builder = BuilderType.Create()`.)
+* It then calls the `void Start<TSM>(ref TSM sm) where TSM : IAsyncStateMachine` method on `builder`. It is an error if this instance method doesn't exist or isn't public or has a different signature or constraints. The `sm` variable is that same `sm` as was constructed earlier. Upon being given this `sm` variable, the builder must invoke `sm.MoveNext()` on it exactly once, either now in the `Start` method or in the future. 
+* It then retrieves the `U Task {get;}` property on `sm.builder`. The value of this property is then returned from the async method. It is an error if this instance property doesn't exist or isn't public or if its property type `U` isn't identical to the return type of the async tasklike-returning method.
+
+Execution of `sm.MoveNext()` might cause other builder methods to be invoked:
+* If the async method completes succesfully, it invokes the method `void SetResult()` on `sm.builder` (in case of a non-generic tasklike), or the `void SetResult(T result)` method with the operand of the return statement (in case of a generic tasklike). It is an error if this instance method doesn't exist or isn't public.
+* If the async method fails with an exception, it invokes the method `void SetException(System.Exception ex)` on `sm.builder`. It is an error if this instance method doesn't exist or isn't public.
+* If the async method executes an `await e` operation, it invokes `var awaiter = e.GetAwaiter()`.
+  * If this awaiter implements `ICriticalNotifyCompletion` and the `IsCompleted` property is false, then it calls the method `void AwaitUnsafeOnCompleted<TA,TSM>(ref TA awaiter, ref TSM sm) where TA : ICriticalNotifyCompletion where TSM : IAsyncStateMachine` on `sm.builder`. It is an error if this instance method doesn't exist or isn't public or has the wrong constraints. The builder is expected to call `awaiter.UnsafeOnCompleted(action)` with some `action` that will cause `sm.MoveNext()` to be invoked once; or, instead, the builder may call `sm.MoveNext()` once itself.
+  * If this awaiter implements `INotifyCompletion` and the `IsCompleted` property is false, then it calls the method `void AwaitOnCompleted<TA,TSM>(ref TA awaiter, ref TSM sm) where TA : INotifyCompletion where TSM : IAsyncStateMachine` on `sm.builder`. It is an error if this instance method doesn't exist or isn't public or has the wrong constraints. Again the builder is expected to call `awaiter.OnCompleted(action)` similarly, or call `sm.MoveNext()` itself.
+
+In the case where the builder type is a struct, and `sm` is also a struct, it's important to consider what happens should the builder decide to *box* the struct, e.g. by doing `IAsyncStateMachine boxed_sm = sm`. This will always create a new copy of `sm`, which will in turn contain a new copy of `sm.builder`.
+* The builder is at liberty anytime to call `boxed_sm.SetStateMachine(boxed_sm)`. The implementation of this method is compiler-generated, but its only effect is to invoke the `void SetStateMachine(IAsyncStateMachine boxed_sm)` method on `boxed_sm.builder`. It is an error if this instance method on the builder doesn't exist or isn't public.
+* This mechanism is typically used by struct builder types so they can box only once the `sm` parameter they receive in their `Start` or `AwaitOnCompleted` or `AwaitUnsafeOnCompleted` methods; on subsequent calls, they ignore that parameter and used the version they have already boxed. 
+
+
+## Overload resolution
+
+We have two different options on the table for overload resolution:
+
+1. Make overload resolution treat tasklikes the same as it treats `Task` today. But to avoid back-compat-breaks, prefer candidates which don't involve converting an async lambda to a non-Task-returning delegate parameter. 
+2. Don't change overload resolution. Instead rely upon `ValueTask` having an implicit conversion to `Task`.
+
+Neither option is perfect. We'll rank how well each option satisfies the unit tests.
+
+### Overload resolution option 1: treat tasklikes same as `Task`
 
 __Rule 6: overload resolution tie-breakers.__ The overload resolution rules for [better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member) currently say that if neither candidate is better, and also the two applicable candidates have identical parameter types `{P1...Pn}` and `{Q1...Qn}` then we attempt  tie-breakers to determine which is the better one, otherwise it is an ambiguity error. With this feature, this will be modified so that if neither candidate is better and also the parameter types are identical *up to tasklikes* then attempt the tie-breakers: in other words, for purposes of this identity comparison, all non-generic `Tasklike`s are deemed identical to each other, and all generic `Tasklike<T>`s for a given `T` are deemed identical to each other.
 
@@ -157,26 +191,11 @@ void f(Func<ValueTask<byte>> lambda)  // applicable and better, because byte is 
 ```
 
 
-## Semantics for execution of an async method
+### Overload resolution option 2: rely on implicit conversion `ValueTask` to `Task`
 
-The *builder type* of a tasklike is the return type of the static method `CreateAsyncMethodBuilder()` on that tasklike. (Except: if the tasklike is `System.Threading.Tasks.Task` then the builder type is `System.Runtime.CompilerService.AsyncTaskMethodBuilder`; and if the tasklike is `System.Threading.Tasks.Task<T>` then the builder type is `System.Runtime.CompilerService.AsyncTaskMethodBuilder<T>`).
 
-When an async tasklike-returning method is invoked,
-* It creates `var sm = new CompilerGeneratedStateMachineType()` where this compiler-generated state machine type represents the async tasklike method, and may be a struct or a class, and has a field `BuilderType builder` in it, and implements `IAsyncStateMachine`.
-* It assigns `sm.builder = Tasklike.CreateAsyncMethodBuilder()` to create a new instance of the builder type. (Except: if the tasklike is `Task` or `Task<T>`, then the assignment is instead `sm.builder = BuilderType.Create()`.)
-* It then calls the `void Start<TSM>(ref TSM sm) where TSM : IAsyncStateMachine` method on `builder`. It is an error if this instance method doesn't exist or isn't public or has a different signature or constraints. The `sm` variable is that same `sm` as was constructed earlier. Upon being given this `sm` variable, the builder must invoke `sm.MoveNext()` on it exactly once, either now in the `Start` method or in the future. 
-* It then retrieves the `U Task {get;}` property on `sm.builder`. The value of this property is then returned from the async method. It is an error if this instance property doesn't exist or isn't public or if its property type `U` isn't identical to the return type of the async tasklike-returning method.
 
-Execution of `sm.MoveNext()` might cause other builder methods to be invoked:
-* If the async method completes succesfully, it invokes the method `void SetResult()` on `sm.builder` (in case of a non-generic tasklike), or the `void SetResult(T result)` method with the operand of the return statement (in case of a generic tasklike). It is an error if this instance method doesn't exist or isn't public.
-* If the async method fails with an exception, it invokes the method `void SetException(System.Exception ex)` on `sm.builder`. It is an error if this instance method doesn't exist or isn't public.
-* If the async method executes an `await e` operation, it invokes `var awaiter = e.GetAwaiter()`.
-  * If this awaiter implements `ICriticalNotifyCompletion` and the `IsCompleted` property is false, then it calls the method `void AwaitUnsafeOnCompleted<TA,TSM>(ref TA awaiter, ref TSM sm) where TA : ICriticalNotifyCompletion where TSM : IAsyncStateMachine` on `sm.builder`. It is an error if this instance method doesn't exist or isn't public or has the wrong constraints. The builder is expected to call `awaiter.UnsafeOnCompleted(action)` with some `action` that will cause `sm.MoveNext()` to be invoked once; or, instead, the builder may call `sm.MoveNext()` once itself.
-  * If this awaiter implements `INotifyCompletion` and the `IsCompleted` property is false, then it calls the method `void AwaitOnCompleted<TA,TSM>(ref TA awaiter, ref TSM sm) where TA : INotifyCompletion where TSM : IAsyncStateMachine` on `sm.builder`. It is an error if this instance method doesn't exist or isn't public or has the wrong constraints. Again the builder is expected to call `awaiter.OnCompleted(action)` similarly, or call `sm.MoveNext()` itself.
 
-In the case where the builder type is a struct, and `sm` is also a struct, it's important to consider what happens should the builder decide to *box* the struct, e.g. by doing `IAsyncStateMachine boxed_sm = sm`. This will always create a new copy of `sm`, which will in turn contain a new copy of `sm.builder`.
-* The builder is at liberty anytime to call `boxed_sm.SetStateMachine(boxed_sm)`. The implementation of this method is compiler-generated, but its only effect is to invoke the `void SetStateMachine(IAsyncStateMachine boxed_sm)` method on `boxed_sm.builder`. It is an error if this instance method on the builder doesn't exist or isn't public.
-* This mechanism is typically used by struct builder types so they can box only once the `sm` parameter they receive in their `Start` or `AwaitOnCompleted` or `AwaitUnsafeOnCompleted` methods; on subsequent calls, they ignore that parameter and used the version they have already boxed. 
 
 
 # Unit tests
