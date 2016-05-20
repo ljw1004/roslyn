@@ -54,107 +54,14 @@ async InstrumentedTask TestAsync()
 Some other examples: implement a C# version of Haskell's `Maybe` monad with `do` notation [[link](https://github.com/ckimes89/arbitrary-async-return-nullable/)]; implement async iterator methods [[link](https://github.com/ckimes89/arbitrary-async-return-nullable/blob/list-tasklike/NullableTaskLike/ListTaskLike.cs)].
 
 
-# Key test cases
+# Key uses cases
 
-__I should be able to use `ValueTask` as a wholesale replacement for `Task`, every bit as good.__
+These use-cases are written out as unit-tests at the end of this proposal.
 
-```csharp
-// TEST a1: async methods should be able to return ValueTask
-async Task<int> a1() { ... }         //  <-- I can write this in C#6 using Task
-async ValueTask<int> a1() { ... }    //  <-- I should be able to write this instead with the same method body
+1. I should be able to use `ValueTask` as a wholesale replacement for `Task`, every bit as good.
+2. I should be able to migrate my existing API over to `ValueTask`, maintaining source-compatibility and binary-compatibility.
+3. I don't want to break backwards-compatibility. In particular, suppose I have a C#6 app that references a NuGet library in which `ValueTask` is already tasklike. When I upgrade to C#7, I don't want the behavior of my code to change.
 
-// TEST a2: async lambdas should be able to return ValueTask
-Func<Task<int>> a2 = async () => { ... };       //  <-- I can write this in C#6
-Func<ValueTask<int>> a2 = async () => { ... };  //  <-- I should be able to write this instead
-
-// TEST a3: async lambdas are applicable in overload resolution
-a3(async () => 3);
-void a3(Func<Task<int>> lambda)       //  <-- This can be invoked in C#6
-void a3(Func<ValueTask<int>> lambda)  //  <-- If I write this instead, it should be invokable
-
-// TEST a4: async lambda type inference should work with ValueTask like it does with Task
-a4(async () => 3);
-void a4<T>(Func<Task<T>> lambda)       //  <-- This infers T=int
-void a4<T>(Func<ValueTask<T>> lambda)  //  <-- If I write this instead, it should also infer T=int
-
-// TEST a5: able to write overloads that take sync and async lambdas
-void a5<T>(Func<T> lambda)
-void a5<T>(Func<ValueTask<T>> lambda)
-a5(() => 3);                             //  <-- This should invoke the first overload
-a5(async () => 3);                       //  <-- This should invoke the second overload
-
-// TEST a6: able to dig in to better candidate
-void a6(Func<ValueTask<int>> lambda)
-void a6(Func<ValueTask<double>> lambda)
-a6(async () => 3);                       //  <-- This should also prefer the "int" candidate
-```
-
-
-__I should be able to migrate my existing API over to `ValueTask`, maintaining source-compatibility and binary-compatibility.__
-
-```csharp
-// TEST b1: change async return type to be ValueTask
-async Task<int> b1()         //  <-- library v1 has this API
-async ValueTask<int> b1()    //  <-- library v2 has this API *instead*
-var t = b1();                //  <-- This code will of course work in v2 of the library
-Task<int> t = b1();          //  <-- Either this code should work in v2 of the library...
-Task<int> t = b1().AsTask(); //  <-- or this one as a workaround
-
-// TEST b2: add an overload where async return type is ValueTask. [this test is doomed to fail]
-async Task<int> b2()       //  <-- library v1 has this API
-async ValueTask<int> b2()  //  <-- library v2 has this API *additionally*
-var t = b2();              //  <-- This code should work on either version of the library
-
-// TEST b3: change argument to be ValueTask
-void b3(Task<int> t)       //  <-- library has this API
-ValueTask<int> vt;
-b3(vt);                    //  <-- This code should work...
-b3(vt.AsTask());           //  <-- or, if not, then at least this one should
-
-// TEST b4: change parameter to be ValueTask
-void b4(Task<int> t)         //  <-- library v1 has this API
-void b4(ValueTask<int> t)    //  <-- library v2 has this API *instead*
-Task<int> t;
-b4(t);                       //  <-- Either this code should work in v2 of the library...
-b4(t.AsValueTask());         //  <-- or this one as a workaround
-
-// TEST b5: add an overload where parameter is ValueTask
-void b5(Task<int> t)         //  <-- library v1 has this API
-void b5(ValueTask<int> t)    //  <-- library v2 has this API *additionally*
-Task<int> t;
-b5(t);                       //  <-- This could should work in v2 of the library and pick the Task overload
-ValueTask<int> vt;
-b5(vt);                      //  <-- This code should work in v2 of the library and pick ValueTask overload
-
-// TEST b6: change parameter to be Func<ValueTask>
-void b6(Func<Task<int>> lambda)      //  <-- library v1 has this API
-void b6(Func<ValueTask<int>> lambda) //  <-- library v2 has this API *instead*
-b6(async () => 3);                   //  <-- This code should work in v2 of the library
-
-// TEST b7: change parameter to be Func<ValueTask>
-void b7(Func<Task<int>> lambda)      //  <-- library v1 has this API
-void b7(Func<ValueTask<int>> lambda) //  <-- library v2 has this API *additionally*
-b7(async () => 3);                   //  <-- This code should work in v2 and pick the ValueTask overload, for efficiency
-```
-
-__I don't want to break backwards-compatibility.__ In particular, suppose I have a C#6 app that references a NuGet library in which `ValueTask` is already tasklike. When I upgrade to C#7, I don't want the behavior of my code to change.
-
-```csharp
-// TEST c1: don't now prefer a previously-inapplicable ValueTask due to digging in
-void c1(Func<Task<double>> lambda)
-void c1(Func<ValueTask<int>> lambda)
-c1(async () => 3);                    //  <-- When I upgrade, this should still pick the Task overload
-
-// TEST c2: don't introduce ambiguity errors about newly applicable candidates
-void c2(Func<Task<int>> lambda)
-void c2(Func<ValueTask<int>> lambda)
-c2(async () => 3);                    //  <-- When I upgrade, this should still pick the Task overload [conflicts with Test b7]
-
-// TEST c3: don't now prefer a previously-inappicable ValueTask due to tie-breakers [conflicts with Test a5]
-void c3<T>(Func<T> lambda)
-void c3<T>(Func<ValueTask<T>> lambda)
-c3(async () => 3);                     //  <-- When I upgrade, this should still pick the first overload
-```
 
 
 # Proposal1
@@ -270,6 +177,139 @@ Execution of `sm.MoveNext()` might cause other builder methods to be invoked:
 In the case where the builder type is a struct, and `sm` is also a struct, it's important to consider what happens should the builder decide to *box* the struct, e.g. by doing `IAsyncStateMachine boxed_sm = sm`. This will always create a new copy of `sm`, which will in turn contain a new copy of `sm.builder`.
 * The builder is at liberty anytime to call `boxed_sm.SetStateMachine(boxed_sm)`. The implementation of this method is compiler-generated, but its only effect is to invoke the `void SetStateMachine(IAsyncStateMachine boxed_sm)` method on `boxed_sm.builder`. It is an error if this instance method on the builder doesn't exist or isn't public.
 * This mechanism is typically used by struct builder types so they can box only once the `sm` parameter they receive in their `Start` or `AwaitOnCompleted` or `AwaitUnsafeOnCompleted` methods; on subsequent calls, they ignore that parameter and used the version they have already boxed. 
+
+
+# Unit tests
+
+## I should be able to use `ValueTask` as a wholesale replacement for `Task`, every bit as good.
+
+__TEST a1:__ async methods should be able to return `ValueTask`
+```csharp
+async Task<int> a1() { ... }         //  <-- I can write this in C#6 using Task
+async ValueTask<int> a1() { ... }    //  <-- I should be able to write this instead with the same method body
+```
+
+__TEST a2:__ async lambdas should be able to return `ValueTask`
+```csharp
+Func<Task<int>> a2 = async () => { ... };       //  <-- I can write this in C#6
+Func<ValueTask<int>> a2 = async () => { ... };  //  <-- I should be able to write this instead
+```
+
+__TEST a3:__ async lambdas are applicable in overload resolution
+```csharp
+a3(async () => 3);
+void a3(Func<Task<int>> lambda)       //  <-- This can be invoked in C#6
+void a3(Func<ValueTask<int>> lambda)  //  <-- If I write this instead, it should be invokable
+```
+
+__TEST a4:__ async lambda type inference should work with `ValueTask` like it does with `Task`
+```csharp
+a4(async () => 3);
+void a4<T>(Func<Task<T>> lambda)       //  <-- This infers T=int
+void a4<T>(Func<ValueTask<T>> lambda)  //  <-- If I write this instead, it should also infer T=int
+```
+
+__TEST a5:__ able to write overloads that take sync and async lambdas
+```csharp
+void a5<T>(Func<T> lambda)
+void a5<T>(Func<ValueTask<T>> lambda)
+a5(() => 3);                             //  <-- This should invoke the first overload
+a5(async () => 3);                       //  <-- This should invoke the second overload
+```
+
+__TEST a6:__ able to dig in to better candidate
+```csharp
+void a6(Func<ValueTask<int>> lambda)
+void a6(Func<ValueTask<double>> lambda)
+a6(async () => 3);                       //  <-- This should also prefer the "int" candidate
+```
+
+
+## I should be able to migrate my existing API over to `ValueTask`
+
+As I migrate, I want to maintaining source-compatibility and binary-compatibility for users of my API.
+
+__TEST b1:__ change async return type to be `ValueTask`
+```csharp
+async Task<int> b1()         //  <-- library v1 has this API
+async ValueTask<int> b1()    //  <-- library v2 has this API *instead*
+var v = b1();                //  <-- This code will of course work in v2 of the library
+Task<int> t = b1();          //  <-- Either this code should work in v2 of the library...
+Task<int> t = b1().AsTask(); //  <-- or this one as a workaround
+```
+
+__TEST b2:__ add overload where async return type is `ValueTask`. ***[this test is doomed to fail]***
+```csharp
+async Task<int> b2()       //  <-- library v1 has this API
+async ValueTask<int> b2()  //  <-- library v2 has this API *additionally*
+var t = b2();              //  <-- This code should work on either version of the library
+```
+
+__TEST b3:__ change argument to `ValueTask`
+```csharp
+void b3(Task<int> t)       //  <-- library has this API
+ValueTask<int> vt;
+b3(vt);                    //  <-- This code should work...
+b3(vt.AsTask());           //  <-- or, if not, then at least this one should
+```
+
+__TEST b4:__ change parameter to `ValueTask`
+```csharp
+void b4(Task<int> t)         //  <-- library v1 has this API
+void b4(ValueTask<int> t)    //  <-- library v2 has this API *instead*
+Task<int> t;
+b4(t);                       //  <-- Either this code should work in v2 of the library...
+b4(t.AsValueTask());         //  <-- or this one as a workaround
+```
+
+__TEST b5:__ add overload with parameter `ValueTask`
+```csharp
+void b5(Task<int> t)         //  <-- library v1 has this API
+void b5(ValueTask<int> t)    //  <-- library v2 has this API *additionally*
+Task<int> t;
+b5(t);                       //  <-- This could should work in v2 of the library and pick the Task overload
+ValueTask<int> vt;
+b5(vt);                      //  <-- This code should work in v2 of the library and pick ValueTask overload
+```
+
+__TEST b6:__ change parameter to `Func<ValueTask>`
+```csharp
+void b6(Func<Task<int>> lambda)      //  <-- library v1 has this API
+void b6(Func<ValueTask<int>> lambda) //  <-- library v2 has this API *instead*
+b6(async () => 3);                   //  <-- This code should work in v2 of the library
+```
+
+__TEST b7:__ add overload with parameter `Func<ValueTask>`
+```csharp
+void b7(Func<Task<int>> lambda)      //  <-- library v1 has this API
+void b7(Func<ValueTask<int>> lambda) //  <-- library v2 has this API *additionally*
+b7(async () => 3);                   //  <-- This code should work in v2 and pick the ValueTask overload, for efficiency
+```
+
+## I don't want to break backwards-compatibility.
+
+In particular, suppose I have a C#6 app that references a NuGet library in which `ValueTask` is already tasklike. When I upgrade my to C#7, I don't want the behavior of my code to change.
+
+__TEST c1:__ don't now prefer a previously-inapplicable `ValueTask` due to digging in
+```csharp
+void c1(Func<Task<double>> lambda)
+void c1(Func<ValueTask<int>> lambda)
+c1(async () => 3);                    //  <-- When I upgrade, this should still pick the Task overload
+```
+
+__TEST c2:__ don't introduce ambiguity errors about newly applicable candidates [conflicts with Test b7]
+```csharp
+void c2(Func<Task<int>> lambda)
+void c2(Func<ValueTask<int>> lambda)
+c2(async () => 3);                    //  <-- When I upgrade, this should still pick the Task overload
+```
+
+__TEST c3:__ don't now prefer a previously-inapplicable ValueTask due to tie-breakers [conflicts with Test a5]
+```csharp
+void c3<T>(Func<T> lambda)
+void c3<T>(Func<ValueTask<T>> lambda)
+c3(async () => 3);                     //  <-- When I upgrade, this should still pick the first overload
+```
 
 
 # Design rationale and alternatives
