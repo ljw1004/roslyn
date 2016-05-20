@@ -58,9 +58,9 @@ Some other examples: implement a C# version of Haskell's `Maybe` monad with `do`
 
 These use-cases are written out as unit-tests at the end of this proposal.
 
-1. I should be able to use `ValueTask` as a wholesale replacement for `Task`, every bit as good.
-2. I should be able to migrate my existing API over to `ValueTask`, maintaining source-compatibility and binary-compatibility.
-3. I don't want to break backwards-compatibility. In particular, suppose I have a C#6 app that references a NuGet library in which `ValueTask` is already tasklike. When I upgrade to C#7, I don't want the behavior of my code to change.
+1. I should be able to use `ValueTask` as a wholesale replacement for `Task`, every bit as good. [[link](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-should-be-able-to-use-valuetask-as-a-wholesale-replacement-for-task-every-bit-as-good)]
+2. I should be able to migrate my existing API over to `ValueTask`, maintaining source-compatibility and binary-compatibility. [[link](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-should-be-able-to-migrate-my-existing-api-over-to-valuetask)]
+3. I don't want to break backwards-compatibility. In particular, suppose I have a C#6 app that references a NuGet library in which `ValueTask` is already tasklike. When I upgrade to C#7, I don't want the behavior of my code to change. [[link](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-dont-want-to-break-backwards-compatibility)]
 
 
 
@@ -227,7 +227,7 @@ a6(async () => 3);                       //  <-- This should also prefer the "in
 
 ## I should be able to migrate my existing API over to `ValueTask`
 
-As I migrate, I want to maintaining source-compatibility and binary-compatibility for users of my API.
+As I migrate, I want to maintaining source-compatibility and binary-compatibility for users of my API. And the reason I'm migrating is because I want the better performance of `ValueTask`, so I want users to get that as easily as possible.
 
 __TEST b1:__ change async return type to be `ValueTask`
 ```csharp
@@ -297,14 +297,14 @@ void c1(Func<ValueTask<int>> lambda)
 c1(async () => 3);                    //  <-- When I upgrade, this should still pick the Task overload
 ```
 
-__TEST c2:__ don't introduce ambiguity errors about newly applicable candidates [conflicts with Test b7]
+__TEST c2:__ don't introduce ambiguity errors about newly applicable candidates [conflicts with [Test b7](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-should-be-able-to-migrate-my-existing-api-over-to-valuetask)]
 ```csharp
 void c2(Func<Task<int>> lambda)
 void c2(Func<ValueTask<int>> lambda)
 c2(async () => 3);                    //  <-- When I upgrade, this should still pick the Task overload
 ```
 
-__TEST c3:__ don't now prefer a previously-inapplicable ValueTask due to tie-breakers [conflicts with Test a5]
+__TEST c3:__ don't now prefer a previously-inapplicable ValueTask due to tie-breakers [conflicts with [Test a5](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-should-be-able-to-use-valuetask-as-a-wholesale-replacement-for-task-every-bit-as-good)]
 ```csharp
 void c3<T>(Func<T> lambda)
 void c3<T>(Func<ValueTask<T>> lambda)
