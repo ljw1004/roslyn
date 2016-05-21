@@ -262,9 +262,15 @@ __TEST a6:__ able to dig in to better candidate
 ```csharp
 void a6(Func<ValueTask<int>> lambda)
 void a6(Func<ValueTask<double>> lambda)
-a6(async () => 3);                       //  <-- This should also prefer the "int" candidate
+a6(async () => 3);                       //  <-- This should prefer the "int" candidate
 ```
 
+__TEST a7:__ prefer over void
+```csharp
+void a7(Action lambda)
+void a7(Func<ValueTask> lambda)
+a7(async () => {});                       // <-- This should prefer the "ValueTask" candidate
+```
 
 ## I should be able to migrate my existing API over to `ValueTask`
 
@@ -277,6 +283,12 @@ async ValueTask<int> b1()    //  <-- library v2 has this API *instead*
 var v = b1();                //  <-- This code will of course work in v2 of the library
 Task<int> t = b1();          //  <-- Either this code should work in v2 of the library...
 Task<int> t = b1().AsTask(); //  <-- or this one as a workaround
+
+async Task b1n()             //  <-- library v1 has this API
+async ValueTask b1n()        //  <-- library v2 has this API *instead*
+var v = b1n();               //  <-- This code will of course work in v2 of the library
+Task t= b1n();               //  <-- Either this could should work in v2 of the library...
+Task t = b1n().AsTask();     //  <-- or this one as a workaround
 ```
 
 __TEST b2:__ add overload where async return type is `ValueTask`. ***[this test is doomed to fail]***
@@ -284,6 +296,10 @@ __TEST b2:__ add overload where async return type is `ValueTask`. ***[this test 
 async Task<int> b2()       //  <-- library v1 has this API
 async ValueTask<int> b2()  //  <-- library v2 has this API *additionally*
 var t = b2();              //  <-- This code should work on either version of the library
+
+async Task b2n()           //  <-- library v1 has this API
+async ValueTask b2n()      //  <-- library v2 has this API *additionally*
+var t = b2n();             //  <-- This code should work on either version of the library
 ```
 
 __TEST b3:__ change argument to `ValueTask`
@@ -292,6 +308,11 @@ void b3(Task<int> t)       //  <-- library has this API
 ValueTask<int> vt;
 b3(vt);                    //  <-- This code should work...
 b3(vt.AsTask());           //  <-- or, if not, then at least this one should
+
+void b3n(Task t)           //  <-- library has this API
+ValueTask vt;
+b3n(vt)                    //  <-- This code should work...
+b3n(vt.AsTask());          //  <-- or, if not, then at least this one should
 ```
 
 __TEST b4:__ change parameter to `ValueTask`
@@ -301,30 +322,51 @@ void b4(ValueTask<int> t)    //  <-- library v2 has this API *instead*
 Task<int> t;
 b4(t);                       //  <-- Either this code should work in v2 of the library...
 b4(t.AsValueTask());         //  <-- or this one as a workaround
+
+void b4n(Task t)             //  <-- library v1 has this API
+void b4n(ValueTask t)        //  <-- library v2 has this API instead
+Task t;
+b4n(t);                      //  <-- Either this code should work in v2 of the library...
+b4n(t.AsValueTask());        //  <-- or this one as a workaround
 ```
 
 __TEST b5:__ add overload with parameter `ValueTask`
 ```csharp
-void b5(Task<int> t)         //  <-- library v1 has this API
-void b5(ValueTask<int> t)    //  <-- library v2 has this API *additionally*
+void b5(Task<int> t, double d)       //  <-- library v1 has this API
+void b5(ValueTask<int> t, double d)  //  <-- library v2 has this API *additionally*
 Task<int> t;
-b5(t);                       //  <-- This could should work in v2 of the library and pick the Task overload
+b5(t,1);                             //  <-- This could should work in v2 of the library and pick the Task overload
 ValueTask<int> vt;
-b5(vt);                      //  <-- This code should work in v2 of the library and pick ValueTask overload
+b5(vt,1);                            //  <-- This code should work in v2 of the library and pick ValueTask overload
+
+void b5n(Task t, double d)           //  <-- library v1 has this API
+void b5n(ValueTask t, double d)      //  <-- library v2 has this API *additionally*
+Task t;
+b5n(t,1);                            //  <-- This code should work in v2 of the library and pick the Task overload
+ValueTask vt;
+b5n(vt,1);                           //  <-- This code should work in v2 of the library and pick ValueTask overload
 ```
 
-__TEST b6:__ change parameter to `Func<ValueTask>`
+__TEST b6:__ change parameter to `Func<ValueTask<T>>`
 ```csharp
 void b6(Func<Task<int>> lambda)      //  <-- library v1 has this API
 void b6(Func<ValueTask<int>> lambda) //  <-- library v2 has this API *instead*
 b6(async () => 3);                   //  <-- This code should work in v2 of the library
+
+void b6n(Func<Task> lambda)          //  <-- library v1 has this API
+void b6n(Func<ValueTask> lambda)     //  <-- library v2 has this API *instead*
+b6n(async () => {});                 //  <-- This code should work in v2 of the library
 ```
 
-__TEST b7:__ add overload with parameter `Func<ValueTask>`
+__TEST b7:__ add overload with parameter `Func<ValueTask<T>>`
 ```csharp
 void b7(Func<Task<int>> lambda)      //  <-- library v1 has this API
 void b7(Func<ValueTask<int>> lambda) //  <-- library v2 has this API *additionally*
 b7(async () => 3);                   //  <-- This code should work in v2 and pick the ValueTask overload, for efficiency
+
+void b7n(Func<Task> lambda)          //  <-- library v1 has this API
+void b7n(Func<ValueTask> lambda)     //  <-- library v2 has this API *additionally*
+b7n(async () => {});                 //  <-- This code should work in v2 and pick the ValueTask overload, for efficiency
 ```
 
 ## I don't want to break backwards-compatibility.
@@ -343,13 +385,21 @@ __TEST c2:__ don't introduce ambiguity errors about newly applicable candidates 
 void c2(Func<Task<int>> lambda)
 void c2(Func<ValueTask<int>> lambda)
 c2(async () => 3);                    //  <-- When I upgrade, this should still pick the Task overload
+
+void c2n(Func<Task> lambda)
+void c2n(Func<ValueTask> lambda)
+c2n(async () => {});                  //  <-- when I upgrade, this should still pick the Task overload
 ```
 
 __TEST c3:__ don't now prefer a previously-inapplicable ValueTask due to tie-breakers [conflicts with [Test a5](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-should-be-able-to-use-valuetask-as-a-wholesale-replacement-for-task-every-bit-as-good)]
 ```csharp
 void c3<T>(Func<T> lambda)
 void c3<T>(Func<ValueTask<T>> lambda)
-c3(async () => 3);                     //  <-- When I upgrade, this should still pick the first overload
+c3(async () => 3);                     //  <-- When I upgrade, this should still pick the "T" overload
+
+void c3n(Action lambda)
+void c3n(Func<ValueTask> lambda)
+c3n(async () => {});                   //  <-- When I upgrade, this should still pick the Action overload
 ```
 
 
