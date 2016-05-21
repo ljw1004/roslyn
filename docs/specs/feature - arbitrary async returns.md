@@ -178,6 +178,8 @@ void f(Func<Task<int>> lambda)       // prefers this candidate
 void f(Func<ValueTask<int>> lambda)
 ```
 
+*Note: this will play badly with implicit conversions in the opposite direction, since then neither candidate will be better.*
+
 __Rule 5b: overload resolution tie-breakers.__ The overload resolution rules for [better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member) currently say that if neither candidate is better, and also the two applicable candidates have identical parameter types `{P1...Pn}` and `{Q1...Qn}` then we attempt  tie-breakers to determine which is the better one, otherwise it is an ambiguity error. With this feature, this will be modified so that if neither candidate is better and also the parameter types are identical *"up to tasklikes"* then attempt the tie-breakers: more precisely, for purposes of this identity comparison, all non-generic `Tasklike`s are deemed identical to each other, and all generic `Tasklike<T>`s for a given `T` are deemed identical to each other.
 
 ```csharp
@@ -199,6 +201,8 @@ void f(Func<ValueTask<int>> lambda)     // better
 ### Overload resolution option 2: rely on implicit conversion `ValueTask` to `Task`
 
 We trust that library authors write `ValueTask<T>` with an implicit conversion to `Task<T>`, and make no changes to overload resolution.
+
+*Note: upon reflection, this won't work well. That's because `Task<int>` will be an exact match for an async lambda, while `ValueTask<int>` won't, and therefore the `Task` overloads will be preferred before we even get to consider implicit conversions.*
 
 ```csharp
 f(async () => 3);
