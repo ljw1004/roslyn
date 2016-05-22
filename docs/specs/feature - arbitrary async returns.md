@@ -369,19 +369,19 @@ b4n(t.AsValueTask());        //  <-- or this one as a workaround
 __TEST b5:__ add overload with parameter `ValueTask`
 
 ```csharp
-void b5(Task<int> t, double d)       //  <-- library v1 has this API
-void b5(ValueTask<int> t, double d)  //  <-- library v2 has this API *additionally*
+void b5(Task<int> t)       //  <-- library v1 has this API
+void b5(ValueTask<int> t)  //  <-- library v2 has this API *additionally*
 Task<int> t;
-b5(t,1);                             //  <-- This could should work in v2 of the library and pick the Task overload
+b5(t);                     //  <-- This could should work in v2 of the library and pick the Task overload
 ValueTask<int> vt;
-b5(vt,1);                            //  <-- This code should work in v2 of the library and pick ValueTask overload
+b5(vt);                    //  <-- This code should work in v2 of the library and pick ValueTask overload
 
-void b5n(Task t, double d)           //  <-- library v1 has this API
-void b5n(ValueTask t, double d)      //  <-- library v2 has this API *additionally*
+void b5n(Task t)           //  <-- library v1 has this API
+void b5n(ValueTask t)      //  <-- library v2 has this API *additionally*
 Task t;
-b5n(t,1);                            //  <-- This code should work in v2 of the library and pick the Task overload
+b5n(t);                    //  <-- This code should work in v2 of the library and pick the Task overload
 ValueTask vt;
-b5n(vt,1);                           //  <-- This code should work in v2 of the library and pick ValueTask overload
+b5n(vt);                   //  <-- This code should work in v2 of the library and pick ValueTask overload
 ```
 
 __TEST b6:__ change parameter to `Func<ValueTask<T>>`
