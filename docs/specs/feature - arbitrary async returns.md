@@ -412,7 +412,7 @@ b7n(async () => {});                 //  <-- This code should work in v2 and pic
 
 In particular, suppose I have a C#6 app that references a NuGet library in which `ValueTask` is already tasklike. When I upgrade my to C#7, I don't want the behavior of my code to change.
 
-__TEST c1:__ don't now prefer a previously-inapplicable `ValueTask` due to digging in
+__TEST c1:__ don't now prefer a previously-inapplicable `ValueTask` due to exact match
 
 ```csharp
 void c1(Func<Task<double>> lambda)
@@ -420,28 +420,36 @@ void c1(Func<ValueTask<int>> lambda)
 c1(async () => 3);                    //  <-- When I upgrade, this should still pick the Task overload
 ```
 
-__TEST c2:__ don't introduce ambiguity errors about newly applicable candidates [conflicts with [Test b7](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-should-be-able-to-migrate-my-existing-api-over-to-valuetask)]
+__TEST c2:__ don't now prefer a previously-inapplicable `ValueTask` due to digging in
 
 ```csharp
-void c2(Func<Task<int>> lambda)
-void c2(Func<ValueTask<int>> lambda)
-c2(async () => 3);                    //  <-- When I upgrade, this should still pick the Task overload
-
-void c2n(Func<Task> lambda)
-void c2n(Func<ValueTask> lambda)
-c2n(async () => {});                  //  <-- when I upgrade, this should still pick the Task overload
+void c2(Func<Task<short>> lambda)
+void c2(Func<ValueTask<byte>> lambda)
+c2(async () => 3);                    //  <-- When I upgrade, this should still pick the ValueTask overload
 ```
 
-__TEST c3:__ don't now prefer a previously-inapplicable ValueTask due to tie-breakers [conflicts with [Test a5](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-should-be-able-to-use-valuetask-as-a-wholesale-replacement-for-task-every-bit-as-good)]
+__TEST c3:__ don't introduce ambiguity errors about newly applicable candidates [conflicts with [Test b7](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-should-be-able-to-migrate-my-existing-api-over-to-valuetask)]
 
 ```csharp
-void c3<T>(Func<T> lambda)
-void c3<T>(Func<ValueTask<T>> lambda)
-c3(async () => 3);                     //  <-- When I upgrade, this should still pick the "T" overload
+void c3(Func<Task<int>> lambda)
+void c3(Func<ValueTask<int>> lambda)
+c3(async () => 3);                    //  <-- When I upgrade, this should still pick the Task overload
 
-void c3n(Action lambda)
+void c3n(Func<Task> lambda)
 void c3n(Func<ValueTask> lambda)
-c3n(async () => {});                   //  <-- When I upgrade, this should still pick the Action overload
+c3n(async () => {});                  //  <-- when I upgrade, this should still pick the Task overload
+```
+
+__TEST c4:__ don't now prefer a previously-inapplicable ValueTask due to tie-breakers [conflicts with [Test a5](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-should-be-able-to-use-valuetask-as-a-wholesale-replacement-for-task-every-bit-as-good)]
+
+```csharp
+void c4<T>(Func<T> lambda)
+void c4<T>(Func<ValueTask<T>> lambda)
+c4(async () => 3);                     //  <-- When I upgrade, this should still pick the "T" overload
+
+void c4n(Action lambda)
+void c4n(Func<ValueTask> lambda)
+c4n(async () => {});                   //  <-- When I upgrade, this should still pick the Action overload
 ```
 
 
