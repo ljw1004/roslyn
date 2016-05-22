@@ -242,18 +242,21 @@ void h(Func<ValueTask<int>> lambda)   // applicable; both are applicable, so it'
 ## I should be able to use `ValueTask` as a wholesale replacement for `Task`, every bit as good.
 
 __TEST a1:__ async methods should be able to return `ValueTask`
+
 ```csharp
 async Task<int> a1() { ... }         //  <-- I can write this in C#6 using Task
 async ValueTask<int> a1() { ... }    //  <-- I should be able to write this instead with the same method body
 ```
 
 __TEST a2:__ async lambdas should be able to return `ValueTask`
+
 ```csharp
 Func<Task<int>> a2 = async () => { ... };       //  <-- I can write this in C#6
 Func<ValueTask<int>> a2 = async () => { ... };  //  <-- I should be able to write this instead
 ```
 
 __TEST a3:__ async lambdas are applicable in overload resolution
+
 ```csharp
 a3(async () => 3);
 void a3(Func<Task<int>> lambda)       //  <-- This can be invoked in C#6
@@ -261,6 +264,7 @@ void a3(Func<ValueTask<int>> lambda)  //  <-- If I write this instead, it should
 ```
 
 __TEST a4:__ async lambda type inference should work with `ValueTask` like it does with `Task`
+
 ```csharp
 a4(async () => 3);
 void a4<T>(Func<Task<T>> lambda)       //  <-- This infers T=int
@@ -268,6 +272,7 @@ void a4<T>(Func<ValueTask<T>> lambda)  //  <-- If I write this instead, it shoul
 ```
 
 __TEST a5:__ able to write overloads that take sync and async lambdas
+
 ```csharp
 void a5<T>(Func<T> lambda)
 void a5<T>(Func<ValueTask<T>> lambda)
@@ -275,18 +280,28 @@ a5(() => 3);                             //  <-- This should invoke the first ov
 a5(async () => 3);                       //  <-- This should invoke the second overload
 ```
 
-__TEST a6:__ able to dig in to better candidate
+__TEST a6:__ exact match better candidate
+
 ```csharp
 void a6(Func<ValueTask<int>> lambda)
 void a6(Func<ValueTask<double>> lambda)
 a6(async () => 3);                       //  <-- This should prefer the "int" candidate
 ```
 
-__TEST a7:__ prefer over void
+__TEST a7:__ dig into better candidate
+
 ```csharp
-void a7(Action lambda)
-void a7(Func<ValueTask> lambda)
-a7(async () => {});                       // <-- This should prefer the "ValueTask" candidate
+void a7(Func<ValueTask<short>> lambda)
+void a7(Func<ValueTask<byte>> lambda)
+a7(async () => 3);                       //  <-- This should prefer the "byte" candidate
+```
+
+__TEST a8:__ prefer over void
+
+```csharp
+void a8(Action lambda)
+void a8(Func<ValueTask> lambda)
+a8(async () => {});                       // <-- This should prefer the "ValueTask" candidate
 ```
 
 ## I should be able to migrate my existing API over to `ValueTask`
@@ -294,6 +309,7 @@ a7(async () => {});                       // <-- This should prefer the "ValueTa
 As I migrate, I want to maintaining source-compatibility and binary-compatibility for users of my API. And the reason I'm migrating is because I want the better performance of `ValueTask`, so I want users to get that as easily as possible.
 
 __TEST b1:__ change async return type to be `ValueTask`
+
 ```csharp
 async Task<int> b1()         //  <-- library v1 has this API
 async ValueTask<int> b1()    //  <-- library v2 has this API *instead*
@@ -309,6 +325,7 @@ Task t = b1n().AsTask();     //  <-- or this one as a workaround
 ```
 
 __TEST b2:__ add overload where async return type is `ValueTask`. ***[this test is doomed to fail]***
+
 ```csharp
 async Task<int> b2()       //  <-- library v1 has this API
 async ValueTask<int> b2()  //  <-- library v2 has this API *additionally*
@@ -320,6 +337,7 @@ var t = b2n();             //  <-- This code should work on either version of th
 ```
 
 __TEST b3:__ change argument to `ValueTask`
+
 ```csharp
 void b3(Task<int> t)       //  <-- library has this API
 ValueTask<int> vt;
@@ -333,6 +351,7 @@ b3n(vt.AsTask());          //  <-- or, if not, then at least this one should
 ```
 
 __TEST b4:__ change parameter to `ValueTask`
+
 ```csharp
 void b4(Task<int> t)         //  <-- library v1 has this API
 void b4(ValueTask<int> t)    //  <-- library v2 has this API *instead*
@@ -348,6 +367,7 @@ b4n(t.AsValueTask());        //  <-- or this one as a workaround
 ```
 
 __TEST b5:__ add overload with parameter `ValueTask`
+
 ```csharp
 void b5(Task<int> t, double d)       //  <-- library v1 has this API
 void b5(ValueTask<int> t, double d)  //  <-- library v2 has this API *additionally*
@@ -365,6 +385,7 @@ b5n(vt,1);                           //  <-- This code should work in v2 of the 
 ```
 
 __TEST b6:__ change parameter to `Func<ValueTask<T>>`
+
 ```csharp
 void b6(Func<Task<int>> lambda)      //  <-- library v1 has this API
 void b6(Func<ValueTask<int>> lambda) //  <-- library v2 has this API *instead*
@@ -376,6 +397,7 @@ b6n(async () => {});                 //  <-- This code should work in v2 of the 
 ```
 
 __TEST b7:__ add overload with parameter `Func<ValueTask<T>>`
+
 ```csharp
 void b7(Func<Task<int>> lambda)      //  <-- library v1 has this API
 void b7(Func<ValueTask<int>> lambda) //  <-- library v2 has this API *additionally*
@@ -391,6 +413,7 @@ b7n(async () => {});                 //  <-- This code should work in v2 and pic
 In particular, suppose I have a C#6 app that references a NuGet library in which `ValueTask` is already tasklike. When I upgrade my to C#7, I don't want the behavior of my code to change.
 
 __TEST c1:__ don't now prefer a previously-inapplicable `ValueTask` due to digging in
+
 ```csharp
 void c1(Func<Task<double>> lambda)
 void c1(Func<ValueTask<int>> lambda)
@@ -398,6 +421,7 @@ c1(async () => 3);                    //  <-- When I upgrade, this should still 
 ```
 
 __TEST c2:__ don't introduce ambiguity errors about newly applicable candidates [conflicts with [Test b7](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-should-be-able-to-migrate-my-existing-api-over-to-valuetask)]
+
 ```csharp
 void c2(Func<Task<int>> lambda)
 void c2(Func<ValueTask<int>> lambda)
@@ -409,6 +433,7 @@ c2n(async () => {});                  //  <-- when I upgrade, this should still 
 ```
 
 __TEST c3:__ don't now prefer a previously-inapplicable ValueTask due to tie-breakers [conflicts with [Test a5](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-should-be-able-to-use-valuetask-as-a-wholesale-replacement-for-task-every-bit-as-good)]
+
 ```csharp
 void c3<T>(Func<T> lambda)
 void c3<T>(Func<ValueTask<T>> lambda)
