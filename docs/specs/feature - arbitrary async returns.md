@@ -169,7 +169,7 @@ Overload resolution is tricky. Before even defining these proposals, let's write
 Let's informally rewrite the two proposals:
 
 * __[Option1]__
-  1. If the arguments exactly match one candidate, it wins. An async lambda `async () => 3` is considered an exact match for a a delegate with return type `Task<int>` ***and any other `Tasklike<int>`.***
+  1. If the arguments exactly match one candidate, it wins. An async lambda `async () => 3` is considered an exact match for a delegate with return type `Task<int>` ***and any other `Tasklike<int>`.***
   2. If there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins. Also recursively dig in: if both parameters are delegates then dig into their return types and prefer non-void over void; if both parameters are `Task<T>` then dig into `T`; ***if both parameters are the same `Tasklike<T>` then dig into `T`.***
   3. ***Otherwise, if one candidate converted an async lambda to a task but the other converted it to a tasklike, the first candidate wins. This only applies to tasklikes in the unexpanded parameter types.***
   4. Otherwise, if the two candidates have identical parameter types ***up to all tasklikes being considered the same*** but one candidate before substitution is more specific then prefer it.
