@@ -160,20 +160,25 @@ We have two different options on the table for overload resolution. Neither opti
 * __[Option1]__ Make overload resolution treat tasklikes the same as it treats `Task` today. But to avoid back-compat-breaks, prefer candidates which don't involve converting an async lambda to a non-Task-returning delegate parameter. 
 * __[Option2]__ Don't change overload resolution. Instead rely upon `ValueTask` having an implicit conversion to `Task`.
 
-Overload resolution is tricky. Before even defining these proposals, let's write a rough gist of current C#6 overload resolution algorithm, or at least those parts of it that are relevant:
+Overload resolution is tricky. Before even defining these proposals, let's write a rough gist of current C#6 overload resolution algorithm, or at least those parts of it that are relevant. These steps are performed *after* substituting in all generic type arguments, so the following tests compare candidates after type arguments have been substituted in.
 
-1. Substitute in all generic type arguments, so the following tests compare candidates after type arguments have been substituted in.
-2. If the arguments [exactly match](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) one candidate but not the other, then the first candidate wins. An async lambda `async () => 3` is considered an exact match for a delegate with return type `Task<int>`.
-3. If there is an implicit conversion from the parameter type of one candidate to that of the other but not vice versa, then the first candidate wins as a [better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target)
-4. Apply rule [3] but recursively dig into delegate return type and `Task<T>` generic type arguments; also prefer a non-void-returning delegatee over a void-returning delegate.
-5. If the parameter types are identical then rules [3+4] won't pick out a difference. Instead, if one of the candidates *before substitution* is more specific then prefer it.
+1. If the arguments [exactly match](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) one candidate but not the other, then the first candidate wins. An async lambda `async () => 3` is considered an exact match for a delegate with return type `Task<int>`.
+2. If there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins as a [better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target)
+3. Apply rule [3] but recursively dig in: if both parameters are delegates dig into their return types and prefer non-void over void; if both parameters are `Task<T>` then dig into `T`.
+4. Otherwise, if the two candidates have identical parameter types but one candidate *before substitution* is more specific then prefer it.
 
 Let's informally rewrite the two proposals:
 
-* __[Option1]__ In step 2, consider an async lambda an exact match for all tasklike-returning delegates. Add a step 2b which prefers a candidate without conversions of async lambdas 
-* 
-
-***[TODO: continue this]***
+* __[Option1]__
+  1. If the arguments exactly match one candidate, it wins. An async lambda `async () => 3` is considered an exact match for a a delegate with return type `Task<int>` ***and any other `Tasklike<int>`.***
+  2. If there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins. ***Otherwise, if one candidate converted an async lambda to a task but the other converted it to a tasklike, the first candidate wins. This only applies to tasklikes in the unexpanded parameter types.***
+  3. Apply rule [3] but recursively dig in: if both parameters are delegates dig into their return types and prefer non-void over void; if both parameters are `Task<T>` then dig into `T`; ***if both parameters are the same `Tasklike<T>` then dig into `T`.***
+  4. Otherwise, if the two candidates have identical parameter types ***up to all tasklikes being considered the same** but one candidate before substitution is more specific then prefer it.
+* __[Option2]__
+  1. If the arguments exactly match one candidate, it wins. An async lambda `async () => 3` is considered an exact match for a a delegate with return type `Task<int>` ***and any other `Tasklike<int>`.***
+  2. If there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins. 
+  3. Apply rule [3] but recursively dig in: if both parameters are delegates dig into their return types and prefer non-void over void; if both parameters are `Task<T>` then dig into `T`.
+  4. Otherwise, if the two candidates have identical parameter types but one candidate before substitution is more specific then prefer it.
 
 
 |      | Option1 | Option1 with VT->T | Option1 with VT<-T | Option1 with VT<->T | Option2 with VT->T |
