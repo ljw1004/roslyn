@@ -162,7 +162,7 @@ We have two different options on the table for overload resolution. Neither opti
 
 Overload resolution is tricky. Before even defining these proposals, let's write a rough gist of current C#6 overload resolution algorithm, or at least those parts of it that are relevant. These steps are performed *after* substituting in all generic type arguments, so the following tests compare candidates after type arguments have been substituted in.
 
-1. If the arguments [exactly match](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) one candidate but not the other, then the first candidate wins. An async lambda `async () => 3` is considered an exact match for a delegate with return type `Task<int>`.
+1. If the arguments [exactly match](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) one candidate but not the other, then the exactly-matching candidate wins. An async lambda `async () => 3` is considered an exact match for a delegate with return type `Task<int>`.
 2. If there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins as a [better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target). Also recursively dig in: if both parameters are delegates then dig into their return types and also prefer non-void over void; if both parameters are `Task<T>` then dig into `T`.
 3. Otherwise, if the two candidates have identical parameter types but one candidate *before substitution* is more specific then prefer it.
 
