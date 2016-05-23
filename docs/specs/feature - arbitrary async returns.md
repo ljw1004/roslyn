@@ -183,7 +183,7 @@ Let's informally rewrite the proposals:
 
 |      | Option1 | Option1 with VT->T | Option1 with VT<-T | Option1 with VT<->T | Option2 with VT->T | Option3 |
 |------|---------|--------------------|--------------------|---------------------|--------------------|---------|
-| [Is VT as good as T?](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-should-be-able-to-use-valuetask-as-a-wholesale-replacement-for-task-every-bit-as-good) | ? | ? | ? | ? | ? | ? |
+| [Is VT as good as T?](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-should-be-able-to-use-valuetask-as-a-wholesale-replacement-for-task-every-bit-as-good) | ok | ok | a5.fail | ok | ? | ? |
 | [Can I migrate from T to VT?](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-should-be-able-to-migrate-my-existing-api-over-to-valuetask) | ? | ? | ? | ? | ? | ? |
 | [Is back-compat okay?](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-dont-want-to-break-backwards-compatibility) | ? | ? | ? | ? | ? | ? |
 
