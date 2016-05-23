@@ -155,35 +155,37 @@ In the case where the builder type is a struct, and `sm` is also a struct, it's 
 
 ## Overload resolution
 
-We have two different options on the table for overload resolution. Neither option is perfect, but we'll rank them on how well each option satisfies the unit tests.
+The situation is that we've added a new conversion from async lambdas to delegates that return non-`Task` tasklike types (and we've added type inference rules to go with this). Whenever you add a new conversion, it means that overload resolution will be impact We have a few different options on the table for overload resolution, to make the impact as small as possible. Neither option is perfect, but we'll rank them on how well each option satisfies the unit tests.
 
 * __[Option1]__ Make overload resolution treat tasklikes the same as it treats `Task` today. But to avoid back-compat-breaks, prefer candidates which don't involve converting an async lambda to a non-Task-returning delegate parameter. 
 * __[Option2]__ Don't change overload resolution. Instead rely upon `ValueTask` having an implicit conversion to `Task`.
+* __[Option3]__ Add a notation so the compiler *never* picks a certain overload; it's solely there for binary compat.
 
 Overload resolution is tricky. Before even defining these proposals, let's write a rough gist of current C#6 overload resolution algorithm, or at least those parts of it that are relevant. These steps are performed *after* substituting in all generic type arguments, so the following tests compare candidates after type arguments have been substituted in.
 
 1. If the arguments [exactly match](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) one candidate but not the other, then the exactly-matching candidate wins. An async lambda `async () => 3` is considered an exact match for a delegate with return type `Task<int>`.
-2. If there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins as a [better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target). Also recursively dig in: if both parameters are delegates then dig into their return types and also prefer non-void over void; if both parameters are `Task<T>` then dig into `T`.
+2. If there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins as a [better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target). Otherwise recursively dig in: if both parameters are delegates then dig into their return types and also prefer non-void over void; if both parameters are `Task<T>` then dig into `T`.
 3. Otherwise, if the two candidates have identical parameter types but one candidate *before substitution* is more specific then prefer it.
 
-Let's informally rewrite the two proposals:
+Let's informally rewrite the proposals:
 
 * __[Option1]__
   1. If the arguments exactly match one candidate, it wins. An async lambda `async () => 3` is considered an exact match for a delegate with return type `Task<int>` ***and any other `Tasklike<int>`.***
-  2. If there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins. Also recursively dig in: if both parameters are delegates then dig into their return types and prefer non-void over void; if both parameters are `Task<T>` then dig into `T`; ***if both parameters are the same `Tasklike<T>` then dig into `T`.***
+  2. If there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins. Otherwise recursively dig in: if both parameters are delegates then dig into their return types and prefer non-void over void; if both parameters are `Task<T>` then dig into `T`; ***if both parameters are the same `Tasklike<T>` then dig into `T`.***
   3. ***Otherwise, if one candidate converted an async lambda to a task but the other converted it to a tasklike, the first candidate wins. This only applies to tasklikes in the unexpanded parameter types.***
   4. Otherwise, if the two candidates have identical parameter types ***up to all tasklikes being considered the same*** but one candidate before substitution is more specific then prefer it.
 * __[Option2]__
   1. If the arguments exactly match one candidate, it wins. An async lambda `async () => 3` is considered an exact match for a a delegate with return type `Task<int>` ***and any other `Tasklike<int>`.***
-  2. If there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins as a [better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target). Also recursively dig in: if both parameters are delegates then dig into their return types and also prefer non-void over void; if both parameters are `Task<T>` then dig into `T`.
+  2. If there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins as a [better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target). Otherwise recursively dig in: if both parameters are delegates then dig into their return types and also prefer non-void over void; if both parameters are `Task<T>` then dig into `T`.
   3. Otherwise, if the two candidates have identical parameter types but one candidate before substitution is more specific then prefer it.
+* __[Option3]__
+  1. If a method has `[Obsolete(msg,true)]` attribute on it, then rule it out as inapplicable prior to overload resolution.
 
-
-|      | Option1 | Option1 with VT->T | Option1 with VT<-T | Option1 with VT<->T | Option2 with VT->T |
-|------|---------|--------------------|--------------------|---------------------|--------------------|
-| [Is VT as good as T?](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-should-be-able-to-use-valuetask-as-a-wholesale-replacement-for-task-every-bit-as-good) | ? | ? | ? | ? | ? |
-| [Can I migrate from T to VT?](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-should-be-able-to-migrate-my-existing-api-over-to-valuetask) | ? | ? | ? | ? | ? |
-| [Is back-compat okay?](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-dont-want-to-break-backwards-compatibility) | ? | ? | ? | ? | ? |
+|      | Option1 | Option1 with VT->T | Option1 with VT<-T | Option1 with VT<->T | Option2 with VT->T | Option3 |
+|------|---------|--------------------|--------------------|---------------------|--------------------|---------|
+| [Is VT as good as T?](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-should-be-able-to-use-valuetask-as-a-wholesale-replacement-for-task-every-bit-as-good) | ? | ? | ? | ? | ? | ? |
+| [Can I migrate from T to VT?](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-should-be-able-to-migrate-my-existing-api-over-to-valuetask) | ? | ? | ? | ? | ? | ? |
+| [Is back-compat okay?](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-dont-want-to-break-backwards-compatibility) | ? | ? | ? | ? | ? | ? |
 
 ### Overload resolution option 1: treat tasklikes same as `Task`
 
@@ -313,13 +315,13 @@ __TEST b1:__ change async return type to be `ValueTask`
 ```csharp
 async Task<int> b1()         //  <-- library v1 has this API
 async ValueTask<int> b1()    //  <-- library v2 has this API *instead*
-var v = b1();                //  <-- This code will of course work in v2 of the library
+await v = b1();              //  <-- This code will of course work in v2 of the library
 Task<int> t = b1();          //  <-- Either this code should work in v2 of the library...
 Task<int> t = b1().AsTask(); //  <-- or this one as a workaround
 
 async Task b1n()             //  <-- library v1 has this API
 async ValueTask b1n()        //  <-- library v2 has this API *instead*
-var v = b1n();               //  <-- This code will of course work in v2 of the library
+await v = b1n();      //  <-- This code will of course work in v2 of the library
 Task t= b1n();               //  <-- Either this could should work in v2 of the library...
 Task t = b1n().AsTask();     //  <-- or this one as a workaround
 ```
@@ -410,7 +412,7 @@ b7n(async () => {});                 //  <-- This code should work in v2 and pic
 
 ## I don't want to break backwards-compatibility.
 
-In particular, suppose I have a C#6 app that references a NuGet library in which `ValueTask` is already tasklike. When I upgrade my to C#7, I don't want the behavior of my code to change.
+In particular, suppose I have a C#6 app that references a NuGet library in which `ValueTask` is already tasklike. When I upgrade my project to C#7, I don't want the behavior of my code to change.
 
 __TEST c1:__ don't now prefer a previously-inapplicable `ValueTask` due to exact match
 
@@ -425,7 +427,7 @@ __TEST c2:__ don't now prefer a previously-inapplicable `ValueTask` due to diggi
 ```csharp
 void c2(Func<Task<short>> lambda)
 void c2(Func<ValueTask<byte>> lambda)
-c2(async () => 3);                    //  <-- When I upgrade, this should still pick the ValueTask overload
+c2(async () => 3);                    //  <-- When I upgrade, this should still pick the Task overload
 ```
 
 __TEST c3:__ don't introduce ambiguity errors about newly applicable candidates [conflicts with [Test b7](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-should-be-able-to-migrate-my-existing-api-over-to-valuetask)]
