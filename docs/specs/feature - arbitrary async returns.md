@@ -184,17 +184,7 @@ __[Option "E"]__: Make overload resolution treat tasklikes equivalently as it tr
 
 # Unit tests
 
-***[TODO: I had misunderstood the rules for "exact match". The above text is now correct. I need to go back and revise the following table.]***
-
-***[TODO: I don't understand the "exact match" rules in the spec. How is the "inferred return type" subclause any different from the bullet that follows it?]***
-
 I will compare the options for overload resolution against a load of "language-design unit tests": (a) I can use `ValueTask` every bit as good as `Task` for a wholesale replacement; (b) I can incrementally migrate my API over to `ValueTask`; (c) I don't want to break back-compat. I've written 28 unit tests in total, but only 13 are interested and I've summarized them in the table below. Conclusions:
-
-* *The option "IC: don't change overload resolution; instead rely on a user-defined implicit conversion from `ValueTask` to `Task`" is best.*
-* Some of the important criteria (a5,a8,b7,b7n) conflict with maintaining 100% back-compat (c3,c3n,c4,c4n). **I think we should esteem (a,b) higher** since they are mainstream scenarios; the back-compat ones are niche.
-* A useful scenario (b2) is to add an overload which differs only in return type. This is currently disallowed in C#. **I think we should add a new modreq `hidden void f()`** with the meaning that this method is emitted in IL and is allowed to differ only in return-type (to maintain binary compatibility) but will never be seen by the C# compiler. However, this issue is orthogonal.
-* An user-defined implicit conversion from `ValueTask` to `Task` is needed for (b7,b7n) APIs to offer both `Func<Task>` and `Func<ValueTask>` overloads and prefer the more efficient `ValueTask`; an implicit conversion in the reverse direction will break this scenario and also the important (a5) of allowing a method to accept both sync and async lambdas.
-* There are some niche cases of digging in to prefer one mediocre candidate over another mediocre candidate. It's not worth adding rules for these cases: having betterness dig into tasklikes as well as task brings a tiny benefit (a7), and having async lambdas prefer task over other tasklies brings a tiny benefit (c2)
 
 For sake of this table, I've added another option "0" which is to use overload resolution exactly as-is, without even the tasklike tweak to the "exact match" criterion. And I've shown where the idea of a modreq `hidden` would help binary-compatibility.
 
