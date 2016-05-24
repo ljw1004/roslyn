@@ -182,59 +182,18 @@ __[Options "E"]__: Make overload resolution treat tasklikes equivalently as it t
 4. Otherwise, if the two candidates have identical parameter types ***up to all tasklikes being considered the same*** but one candidate before substitution is more specific then prefer it.
 
 
-### Overload resolution option 1: treat tasklikes same as `Task`
-
-__Rule 5a: overload resolution betterness.__ The overload resolution rules for [better conversion from expression](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-from-expression) currently list two things that make the implicit conversion `CP` from `Ex` to `Px` better than the implicit conversion `CQ` from `Ex` to `Qx`. We will add a third: if `Ex` is an async lambda, and the unexpanded parameter type `Rx` of `Px` is a delegate whose return type is `Task` or `Task<T>`, and the unexpanded parameter type `Sx` of `Qx` is not, then `CP` is a better conversion than `CQ`.
-
-```csharp
-f(async () => 3);
-void f(Func<Task<int>> lambda)       // prefers this candidate
-void f(Func<ValueTask<int>> lambda)
-```
-
-*Note: this will play badly with implicit conversions in the opposite direction, since then neither candidate will be better.*
-
-__Rule 5b: overload resolution tie-breakers.__ The overload resolution rules for [better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member) currently say that if neither candidate is better, and also the two applicable candidates have identical parameter types `{P1...Pn}` and `{Q1...Qn}` then we attempt  tie-breakers to determine which is the better one, otherwise it is an ambiguity error. With this feature, this will be modified so that if neither candidate is better and also the parameter types are identical *"up to tasklikes"* then attempt the tie-breakers: more precisely, for purposes of this identity comparison, all non-generic `Tasklike`s are deemed identical to each other, and all generic `Tasklike<T>`s for a given `T` are deemed identical to each other.
-
-```csharp
-f(async () => 3); 
-void f<T>(Func<T> lambda)             // infers T = Task<int> [as it always has], and is applicable
-void f<T>(Func<ValueTask<T>> lambda)  // infers T = int [under rule 4 of the proposal], and is applicable
-// With rule 5b, both candidates are identical up-to-tasklikes, and the second is more specific
-```
-
-__Rule 5c: overload resolution betterness.__ The overload resolution rules currently "dig into" `Task<T>` for determining betterness... In [Exactly matching expression](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) it says that an async lambda *exactly matches* a delegate with return type `Task<Y>` if its return statement operands exactly match `Y`; this will be amended to say it exactly matches a delegate with return type `Tasklike<Y>`. Likewise the rules for [Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target) say that `Task<S1>` is a better conversion target than `Task<S2>` (written `Task<S1> > Task<S2>`) if `S1 > S2`; this will be amended to say that `TasklikeA<S1> > TaslikeB<S2>` if `S1 > S2`.
-
-```csharp
-f(async () => 3);
-void f(Func<MyTask<double>> lambda)     
-void f(Func<ValueTask<int>> lambda)     // better
-```
-
-
-### Overload resolution option 2: rely on implicit conversion `ValueTask` to `Task`
-
-We trust that library authors write `ValueTask<T>` with an implicit conversion to `Task<T>`, and make no changes to overload resolution.
-
-*Note: upon reflection, this won't work well. That's because `Task<int>` will be an exact match for an async lambda, while `ValueTask<int>` won't, and therefore the `Task` overloads will be preferred before we even get to consider implicit conversions.*
-
-```csharp
-f(async () => 3);
-void f(Func<Task<int>> lambda)       
-void f(Func<ValueTask<int>> lambda)  // prefers this candidate because `ValueTask<T>` is a better conversion target than Task<T>
-
-g(async () => 3); 
-void g<T>(Func<T> lambda)             // infers T = Task<int> [as it always has], and is applicable
-void g<T>(Func<ValueTask<T>> lambda)  // infers T = int, and is applicable, and is a better conversion target
-
-h(async () => 3);
-void h(Func<Task<double>> lambda)     // applicable
-void h(Func<ValueTask<int>> lambda)   // applicable; both are applicable, so it's an ambiguity error
-```
-
-
-
 # Unit tests
+
+I will compare the options for overload resolution against a load of "language-design unit tests": (a) I can use `ValueTask` every bit as good as `Task` for a wholesale replacement; (b) I can incrementally migrate my API over to `ValueTask`; (c) I don't want to break back-compat. I've written 28 unit tests in total, but only 13 are interested and I've summarized them in the table below. Conclusions:
+
+* *The option "IC: don't change overload resolution; instead rely on a user-defined implicit conversion from `ValueTask` to `Task`" is best.*
+* Some of the important criteria (a5,a8,b7,b7n) conflict with maintaining 100% back-compat (c3,c3n,c4,c4n). **I think we should esteem (a,b) higher** since they are mainstream scenarios; the back-compat ones are niche.
+* A useful scenario (b2) is to add an overload which differs only in return type. This is currently disallowed in C#. **I think we should add a new modreq `hidden void f()`** with the meaning that this method is emitted in IL and is allowed to differ only in return-type (to maintain binary compatibility) but will never be seen by the C# compiler. However, this issue is orthogonal.
+* An user-defined implicit conversion from `ValueTask` to `Task` is needed for (b7,b7n) APIs to offer both `Func<Task>` and `Func<ValueTask>` overloads and prefer the more efficient `ValueTask`; an implicit conversion in the reverse direction will break this scenario and also the important (a5) of allowing a method to accept both sync and async lambdas.
+* There are some niche cases of digging in to prefer one mediocre candidate over another mediocre candidate. It's not worth adding rules for these cases: having betterness dig into tasklikes as well as task brings a tiny benefit (a7), and aving async lambdas prefer task over other tasklies brings a tiny benefit (c2)
+
+![comparison](feature - arbitrary async returns - comparison table.png)
+
 
 ## I should be able to use `ValueTask` as a wholesale replacement for `Task`, every bit as good.
 
