@@ -50,6 +50,82 @@ struct ValueTask<T> { public static Task<T> CreateAsyncMethodBuilder() => null; 
             Assert.True(methodg.IsAsync);
         }
 
+        private static string ValueTaskSourceCode(bool implicitConversionToTask = false, bool implicitConversionFromTask = false)
+        {
+            return $@"
+public struct ValueTask {{
+    {(implicitConversionFromTask ? "public static implicit operator ValueTask(Task t) => default(ValueTask);" : "")}
+    {(implicitConversionToTask ? "public static implicit operator Task(ValueTask vt) => null;" : "")}
+    public static ValueTaskMethodBuilder CreateAsyncMethodBuilder() => default(ValueTaskMethodBuilder);
+}}
+
+public struct ValueTask<T>
+{{
+    {(implicitConversionFromTask ? "public static implicit operator ValueTask<T> (Task<T> task) => default(ValueTask<T>);" : "")}
+    {(implicitConversionToTask ? "public static implicit operator Task<T> (ValueTask<T> vt) => null;" : "")}
+    public static ValueTaskMethodBuilder<T> CreateAsyncMethodBuilder() => default(ValueTaskMethodBuilder<T>);
+}}
+
+public struct ValueTaskMethodBuilder
+{{
+    public void Start<TSM>(ref TSM sm) where TSM : System.Runtime.CompilerServices.IAsyncStateMachine {{ }}
+    public void SetStateMachine(System.Runtime.CompilerServices.IAsyncStateMachine sm) {{ }}
+    public void SetResult() {{ }}
+    public void SetException(Exception ex) {{ }}
+    public ValueTask Task => default(ValueTask);
+    public void AwaitOnCompleted<TA, TSM>(ref TA a, ref TSM sm) where TA : System.Runtime.CompilerServices.INotifyCompletion where TSM : System.Runtime.CompilerServices.IAsyncStateMachine {{ }}
+    public void AwaitUnsafeOnCompleted<TA, TSM>(ref TA a, ref TSM sm) where TA : System.Runtime.CompilerServices.ICriticalNotifyCompletion where TSM : System.Runtime.CompilerServices.IAsyncStateMachine {{ }}
+}}
+
+public struct ValueTaskMethodBuilder<T>
+{{
+    public void Start<TSM>(ref TSM sm) where TSM : System.Runtime.CompilerServices.IAsyncStateMachine {{ }}
+    public void SetStateMachine(System.Runtime.CompilerServices.IAsyncStateMachine sm) {{ }}
+    public void SetResult(T r) {{ }}
+    public void SetException(Exception ex) {{ }}
+    public ValueTask<T> Task => default(ValueTask<T>);
+    public void AwaitOnCompleted<TA, TSM>(ref TA a, ref TSM sm) where TA : System.Runtime.CompilerServices.INotifyCompletion where TSM : System.Runtime.CompilerServices.IAsyncStateMachine {{ }}
+    public void AwaitUnsafeOnCompleted<TA, TSM>(ref TA a, ref TSM sm) where TA : System.Runtime.CompilerServices.ICriticalNotifyCompletion where TSM : System.Runtime.CompilerServices.IAsyncStateMachine {{ }}
+}}
+";
+        }
+
+
+        [Fact]
+        public void AsyncTasklikeOverload_a5()
+        {
+            var source = @"
+using System;
+using System.Threading.Tasks;
+class Program {
+    static void a5<T>(Func<T> lambda) { Console.WriteLine(""T""); }
+    static void a5<T>(Func<ValueTask<T>> lambda) { Console.WriteLine(""ValueTask<T>""); }
+    static void Main() { a5(async () => {await (Task)null; return 3; } ); }
+}";
+
+            CompileAndVerify(source + ValueTaskSourceCode(false, false), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "ValueTask<T>");
+            CompileAndVerify(source + ValueTaskSourceCode(true, false),  additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "ValueTask<T>");
+            CompileAndVerify(source + ValueTaskSourceCode(false, true),  additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "ValueTask<T>");
+            CompileAndVerify(source + ValueTaskSourceCode(true, true),   additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "ValueTask<T>");
+        }
+
+        [Fact]
+        public void AsyncTasklikeOverload_c4n()
+        {
+            var source = @"
+using System;
+using System.Threading.Tasks;
+class Program {
+    static void c4n(Action lambda) { Console.WriteLine(""void""); }
+    static void c4n(Func<ValueTask> lambda) { Console.WriteLine(""ValueTask""); }
+    static void Main() { c4n( async () => { await (Task)null; } ); }
+}";
+            CompileAndVerify(source + ValueTaskSourceCode(false, false), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "ValueTask");
+            CompileAndVerify(source + ValueTaskSourceCode(true, false), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "ValueTask");
+            CompileAndVerify(source + ValueTaskSourceCode(false, true), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "ValueTask");
+            CompileAndVerify(source + ValueTaskSourceCode(true, true), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "ValueTask");
+        }
+
         [Fact]
         public void AsyncTasklikeMethod()
         {
