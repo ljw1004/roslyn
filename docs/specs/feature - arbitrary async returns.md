@@ -194,7 +194,7 @@ I will compare the options for overload resolution against a load of "language-d
 
 For sake of this table, I've added another option "0" which is to use overload resolution exactly as-is, without even the tasklike tweak to the "exact match" criterion. And I've shown where the idea of a modreq `hidden` would help binary-compatibility.
 
-![comparison](feature - arbitrary async returns - comparison table.png)
+![comparison](https://raw.githubusercontent.com/ljw1004/roslyn/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns%20-%20comparison%20table.png)
 
 
 ## I should be able to use `ValueTask` as a wholesale replacement for `Task`, every bit as good.
