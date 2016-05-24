@@ -174,7 +174,7 @@ __[Option "IC"]__: Don't change overload resolution; instead rely on a user-defi
 2. If there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins as a [better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target). Otherwise recursively dig in: if both parameters are delegates then dig into their return types and also prefer non-void over void; if both parameters are `Task<T>` then dig into `T`.
 3. Otherwise, if the two candidates have identical parameter types but one candidate before substitution is more specific then prefer it.
 
-__[Options "E"]__: Make overload resolution treat tasklikes equivalently as it treats `Task` today, but build in a preference for `Task` over `ValueTask` to preserve back-compat.
+__[Option "E"]__: Make overload resolution treat tasklikes equivalently as it treats `Task` today, but build in a preference for `Task` over `ValueTask` to preserve back-compat.
 
 1. If the arguments exactly match one candidate, it wins. An async lambda `async () => 3` is considered an exact match for a a delegate with return type `Task<int>` ***and any other `Tasklike<int>`.***
 2. If there's an implicit conversion from one type to the other but not vice versa, then the "from" parameter wins. Otherwise recursively dig in: if both parameters are delegates then dig into their return types and prefer non-void over void; if both parameters are `Task<T>` then dig into `T`; ***if both parameters are the same `TasklikeA<T>` then dig into `T`.***
@@ -190,7 +190,9 @@ I will compare the options for overload resolution against a load of "language-d
 * Some of the important criteria (a5,a8,b7,b7n) conflict with maintaining 100% back-compat (c3,c3n,c4,c4n). **I think we should esteem (a,b) higher** since they are mainstream scenarios; the back-compat ones are niche.
 * A useful scenario (b2) is to add an overload which differs only in return type. This is currently disallowed in C#. **I think we should add a new modreq `hidden void f()`** with the meaning that this method is emitted in IL and is allowed to differ only in return-type (to maintain binary compatibility) but will never be seen by the C# compiler. However, this issue is orthogonal.
 * An user-defined implicit conversion from `ValueTask` to `Task` is needed for (b7,b7n) APIs to offer both `Func<Task>` and `Func<ValueTask>` overloads and prefer the more efficient `ValueTask`; an implicit conversion in the reverse direction will break this scenario and also the important (a5) of allowing a method to accept both sync and async lambdas.
-* There are some niche cases of digging in to prefer one mediocre candidate over another mediocre candidate. It's not worth adding rules for these cases: having betterness dig into tasklikes as well as task brings a tiny benefit (a7), and aving async lambdas prefer task over other tasklies brings a tiny benefit (c2)
+* There are some niche cases of digging in to prefer one mediocre candidate over another mediocre candidate. It's not worth adding rules for these cases: having betterness dig into tasklikes as well as task brings a tiny benefit (a7), and having async lambdas prefer task over other tasklies brings a tiny benefit (c2)
+
+For sake of this table, I've added another option "0" which is to use overload resolution exactly as-is, without even the tasklike tweak to the "exact match" criterion. And I've shown where the idea of a modreq `hidden` would help binary-compatibility.
 
 ![comparison](feature - arbitrary async returns - comparison table.png)
 
