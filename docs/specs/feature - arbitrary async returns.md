@@ -158,7 +158,7 @@ In the case where the builder type is a struct, and `sm` is also a struct, it's 
 The situation is that we've added a new conversion from async lambdas to delegates that return non-`Task` tasklike types (and we've added type inference rules to go with this). Whenever you add a new conversion, it means that overload resolution will be impact We have a few different options on the table for overload resolution, to make the impact as small as possible. Neither option is perfect, but we'll rank them on how well each option satisfies the unit tests.
 
 * __[Option "IC"]__ Don't change overload resolution; instead rely on a user-defined implicit conversion from `ValueTask` to `Task`. (note: this actually does require a small change to overload resolution, detailed below).
-* __[Option "E"] Make overload resolution treat tasklikes equivalently as it treats `Task` today, but build in a preference for `Task` over `ValueTask` to preserve back-compat.
+* __[Option "E"]__ Make overload resolution treat tasklikes equivalently as it treats `Task` today, but build in a preference for `Task` over `ValueTask` to preserve back-compat.
 
 Overload resolution is tricky. Before even defining these proposals, let's write a rough gist of current C#6 overload resolution algorithm, or at least those parts of it that are relevant. These steps are performed only after ruling out inapplicable candidates, and only after susbstituing in all generic type arguments.
 
