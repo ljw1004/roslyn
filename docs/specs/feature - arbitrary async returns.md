@@ -186,6 +186,8 @@ __[Option "E"]__: Make overload resolution treat tasklikes equivalently as it tr
 
 ***[TODO: I had misunderstood the rules for "exact match". The above text is now correct. I need to go back and revise the following table.]***
 
+***[TODO: I don't understand the "exact match" rules in the spec. How is the "inferred return type" subclause any different from the bullet that follows it?]***
+
 I will compare the options for overload resolution against a load of "language-design unit tests": (a) I can use `ValueTask` every bit as good as `Task` for a wholesale replacement; (b) I can incrementally migrate my API over to `ValueTask`; (c) I don't want to break back-compat. I've written 28 unit tests in total, but only 13 are interested and I've summarized them in the table below. Conclusions:
 
 * *The option "IC: don't change overload resolution; instead rely on a user-defined implicit conversion from `ValueTask` to `Task`" is best.*
