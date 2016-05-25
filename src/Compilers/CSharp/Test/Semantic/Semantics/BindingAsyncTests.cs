@@ -215,36 +215,28 @@ using System.Threading.Tasks;
 class Program {
     static void Main() { MainAsync().GetAwaiter().GetResult(); }
     static async Task MainAsync() {
-        await a1();
-        await a1n();
-        Func<ValueTask<int>> a2 = async () => { await Task.Yield(); Console.Write(""|a2""); return 2; };
-        Func<ValueTask> a2n = async () => { await Task.Yield(); Console.Write(""|a2n""); };
-        await a2();
-        await a2n();
-        a3(async () => { await Task.Yield(); Console.Write(""|a3""); return 3; });
-        a3n(async () => { await Task.Yield(); Console.Write(""|a3n""); });
-        a4(async () => { await Task.Yield(); return 3; });
-        a5(() => 3);
-        a5(async () => { await Task.Yield(); return 3; });
-        a6(async () => { await Task.Yield(); return 3; });
-        a7(async () => { await Task.Yield(); return 3; });
-        a8(async () => { await Task.Yield(); });
+        Console.Write(a3(async () => { await Task.Yield(); return 3; }));
+        Console.Write(a3n(async () => { await Task.Yield(); }));
+        Console.Write(a4(async () => { await Task.Yield(); return 3; }));
+        Console.Write(a5(() => 3));
+        Console.Write(a5(async () => { await Task.Yield(); return 3; }));
+        Console.Write(a6(async () => { await Task.Yield(); return 3; }));
+        Console.Write(a7(async () => { await Task.Yield(); return 3; }));
+        Console.Write(a8(async () => { await Task.Yield(); }));
     }
-    static async ValueTask<int> a1() { await Task.Yield(); Console.Write(""|a1""); return 1; }
-    static async ValueTask a1n() { await Task.Yield(); Console.Write(""|a1n""); }
-    static void a3(Func<ValueTask<int>> lambda) { Console.Write(""|a3""); lambda().GetAwaiter().GetResult(); }
-    static void a3n(Func<ValueTask> lambda) { Console.Write(""|a3n""); lambda().GetAwaiter().GetResult();  }
-    static void a4<T>(Func<ValueTask<T>> lambda) { Console.Write(""|T="" + typeof(T).Name); }
-    static void a5<T>(Func<T> lambda) { Console.Write(""|a5.T""); }
-    static void a5<T>(Func<ValueTask<T>> lambda) { Console.Write(""|a5.ValueTask<T>""); }
-    static void a6(Func<ValueTask<int>> lambda) { Console.Write(""|a6.int""); }
-    static void a6(Func<ValueTask<double>> lambda) { Console.Write(""|a6.double""); }
-    static void a7(Func<ValueTask<short>> lambda) { Console.Write(""|a7.short""); }
-    static void a7(Func<ValueTask<byte>> lambda) { Console.Write(""|a7.byte""); }
-    static void a8(Action lambda) { Console.Write(""|a8.Action""); }
-    static void a8(Func<ValueTask> lambda) { Console.Write(""|a8.Func<ValueTask>""); }
+    static string a3(Func<ValueTask<int>> lambda) => ""|a3"";
+    static string a3n(Func<ValueTask> lambda) => ""|a3n""; 
+    static string a4<T>(Func<ValueTask<T>> lambda) => ""|T="" + typeof(T).Name;
+    static string a5<T>(Func<T> lambda) => ""|a5.T"";
+    static string a5<T>(Func<ValueTask<T>> lambda) => ""|a5.ValueTask<T>"";
+    static string a6(Func<ValueTask<int>> lambda) => ""|a6.int"";
+    static string a6(Func<ValueTask<double>> lambda) => ""|a6.double"";
+    static string a7(Func<ValueTask<short>> lambda) => ""|a7.short"";
+    static string a7(Func<ValueTask<byte>> lambda) => ""|a7.byte"";
+    static string a8(Action lambda) => ""|a8.Action"";
+    static string a8(Func<ValueTask> lambda) => ""|a8.Func<ValueTask>"";
 }";
-            var expected_a = "|a1|a1n|a2|a2n|a3|a3|a3n|a3n|T=Int32|a5.T|a5.ValueTask<T>|a6.int|a7.byte|a8.Func<ValueTask>";
+            var expected_a = "|a3|a3n|T=Int32|a5.T|a5.ValueTask<T>|a6.int|a7.byte|a8.Func<ValueTask>";
             CompileAndVerify(source_a + ValueTaskSourceCode(false, false), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: expected_a);
             CompileAndVerify(source_a + ValueTaskSourceCode(true, false), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: expected_a);
             CompileAndVerify(source_a + ValueTaskSourceCode(false, true), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: expected_a);
