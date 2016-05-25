@@ -361,14 +361,19 @@ b6n(async () => {});                 //  <-- This code should work in v2 of the 
 __TEST b7:__ add overload with parameter `Func<ValueTask<T>>`
 
 ```csharp
-void b7(Func<Task<int>> lambda)      //  <-- library v1 has this API
-void b7(Func<ValueTask<int>> lambda) //  <-- library v2 has this API *additionally*
-b7(async () => 3);                   //  <-- This code should work in v2 and pick the ValueTask overload, for efficiency
+void b7(Func<Task<int>> lambda)        //  <-- library v1 has this API
+void b7(Func<ValueTask<int>> lambda)   //  <-- library v2 has this API *additionally*
+b7(async () => 3);                     //  <-- This code should work in v2 and pick the ValueTask overload, for efficiency
 
-void b7n(Func<Task> lambda)          //  <-- library v1 has this API
-void b7n(Func<ValueTask> lambda)     //  <-- library v2 has this API *additionally*
-b7n(async () => {});                 //  <-- This code should work in v2 and pick the ValueTask overload, for efficiency
+void b7g<T>(Func<Task<T>> lambda)      //  <-- library v1 has this API
+void b7g<T>(Func<ValueTask<T>> lambda) //  <-- library v2 has this API *additionally*
+b7g(async () => 3);                    //  <-- This code should work in v2 and pick the ValueTask overload, for efficiency
+
+void b7n(Func<Task> lambda)            //  <-- library v1 has this API
+void b7n(Func<ValueTask> lambda)       //  <-- library v2 has this API *additionally*
+b7n(async () => {});                   //  <-- This code should work in v2 and pick the ValueTask overload, for efficiency
 ```
+
 
 ## I don't want to break backwards-compatibility.
 
