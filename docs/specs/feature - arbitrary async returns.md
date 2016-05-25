@@ -414,6 +414,17 @@ void c4n(Func<ValueTask> lambda)
 c4n(async () => {});                   //  <-- When I upgrade, this should still pick the Action overload
 ```
 
+__TEST c5:__ 
+
+```csharp
+void c5<T>(Func<Task<T>> lambda)
+void c5<T>(Func<ValueTask<T>> lambda)
+c5(async () => 3);                     //  <-- When I upgrade, this should still pick the "Task<T>" overload
+
+void c5n(Func<Task> lambda)
+void c5n(Func<ValueTask> lambda)
+c5n(async () => {});                   //  <-- When I upgrade, this should still pick the "Task" overload
+```
 
 # Design rationale and alternatives
 
