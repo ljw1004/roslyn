@@ -198,6 +198,9 @@ __TEST a1:__ async methods should be able to return `ValueTask`
 ```csharp
 async Task<int> a1() { ... }         //  <-- I can write this in C#6 using Task
 async ValueTask<int> a1() { ... }    //  <-- I should be able to write this instead with the same method body
+
+async Task a1() { ... }              //  <-- I can write this in C#6 using Task
+async ValueTask a1() { ... }         //  <-- I should be able to write this instead with the same method body
 ```
 
 __TEST a2:__ async lambdas should be able to return `ValueTask`
@@ -205,6 +208,9 @@ __TEST a2:__ async lambdas should be able to return `ValueTask`
 ```csharp
 Func<Task<int>> a2 = async () => { ... };       //  <-- I can write this in C#6
 Func<ValueTask<int>> a2 = async () => { ... };  //  <-- I should be able to write this instead
+
+Func<Task> a2n = async () => { ... };           //  <-- I can write this in C#6
+Func<ValueTask> a2n = async () => { ... };      //  <-- I should be able to write this instead
 ```
 
 __TEST a3:__ async lambdas are applicable in overload resolution
@@ -212,7 +218,11 @@ __TEST a3:__ async lambdas are applicable in overload resolution
 ```csharp
 a3(async () => 3);
 void a3(Func<Task<int>> lambda)       //  <-- This can be invoked in C#6
-void a3(Func<ValueTask<int>> lambda)  //  <-- If I write this instead, it should be invokable
+void a3(Func<ValueTask<int>> lambda)  //  <-- If I write this instead, it should be invocable
+
+a3n(async () => {} );
+void a3n(Func<Task> lambda)           //  <-- This can be invoked in C#6
+void a3n(Func<ValueTask> lambda)      //  <-- If I write this instead, it should be invocable
 ```
 
 __TEST a4:__ async lambda type inference should work with `ValueTask` like it does with `Task`
@@ -265,13 +275,13 @@ __TEST b1:__ change async return type to be `ValueTask`
 ```csharp
 async Task<int> b1()         //  <-- library v1 has this API
 async ValueTask<int> b1()    //  <-- library v2 has this API *instead*
-await v = b1();              //  <-- This code will of course work in v2 of the library
+var v = await b1();          //  <-- This code will of course work in v2 of the library
 Task<int> t = b1();          //  <-- Either this code should work in v2 of the library...
 Task<int> t = b1().AsTask(); //  <-- or this one as a workaround
 
 async Task b1n()             //  <-- library v1 has this API
 async ValueTask b1n()        //  <-- library v2 has this API *instead*
-await v = b1n();      //  <-- This code will of course work in v2 of the library
+await b1n();                 //  <-- This code will of course work in v2 of the library
 Task t= b1n();               //  <-- Either this could should work in v2 of the library...
 Task t = b1n().AsTask();     //  <-- or this one as a workaround
 ```
@@ -369,7 +379,7 @@ __TEST c1:__ don't now prefer a previously-inapplicable `ValueTask` due to exact
 ```csharp
 void c1(Func<Task<double>> lambda)
 void c1(Func<ValueTask<int>> lambda)
-c1(async () => 3);                    //  <-- When I upgrade, this should still pick the Task overload
+c1(async () => 3);                    //  <-- When I upgrade, this should still pick the Task<double> overload
 ```
 
 __TEST c2:__ don't now prefer a previously-inapplicable `ValueTask` due to digging in
