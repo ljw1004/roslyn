@@ -423,6 +423,14 @@ void c4n(Func<ValueTask> lambda)
 c4n(async () => {});                   //  <-- When I upgrade, this should still pick the Action overload
 ```
 
+__TEST c5:__ don't now prefer a previously-inapplicable ValueTask due to more specific
+
+```csharp
+void c5<T>(Func<Task<T>> lambda)
+void c5(Func<ValueTask<int>> lambda)
+c5(async () => 3);                    //  <-- When I upgrade, this should still pick the "Task<T>" overload
+```
+
 # Design rationale and alternatives
 
 For explanation of why the proposal is this way, and to see alternatives, please read the [Design rationale and alternatives](feature - arbitrary async returns - discussion.md).
