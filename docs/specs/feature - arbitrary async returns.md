@@ -402,6 +402,10 @@ void c3(Func<Task<int>> lambda)
 void c3(Func<ValueTask<int>> lambda)
 c3(async () => 3);                    //  <-- When I upgrade, this should still pick the Task overload
 
+void c3g<T>(Func<Task<T>> lambda)
+void c3g<T>(Func<ValueTask<T>> lambda)
+c3g(async () => 3);                    //  <-- When I upgrae, this should still pick the Task overload
+
 void c3n(Func<Task> lambda)
 void c3n(Func<ValueTask> lambda)
 c3n(async () => {});                  //  <-- when I upgrade, this should still pick the Task overload
@@ -419,16 +423,12 @@ void c4n(Func<ValueTask> lambda)
 c4n(async () => {});                   //  <-- When I upgrade, this should still pick the Action overload
 ```
 
-__TEST c5:__ 
+__TEST c5:__ don't now prefer a previously-inapplicable ValueTask due to more specific
 
 ```csharp
 void c5<T>(Func<Task<T>> lambda)
-void c5<T>(Func<ValueTask<T>> lambda)
-c5(async () => 3);                     //  <-- When I upgrade, this should still pick the "Task<T>" overload
-
-void c5n(Func<Task> lambda)
-void c5n(Func<ValueTask> lambda)
-c5n(async () => {});                   //  <-- When I upgrade, this should still pick the "Task" overload
+void c5(Func<ValueTask<int>> lambda)
+c5(async () => 3);                    //  <-- When I upgrade, this should still pick the "Task<T>" overload
 ```
 
 # Design rationale and alternatives
