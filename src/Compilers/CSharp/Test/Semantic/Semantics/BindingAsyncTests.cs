@@ -203,121 +203,95 @@ namespace System.Runtime.CompilerServices
 ";
         }
 
-        [Fact]
-        public void AsyncTasklikeOverload()
+        internal void TasklikeOverloads(string arg, string betterOverload, string worseOverload)
         {
-            // TASKLIKE TODO: fix the commented-out tests
-            // TASKLIKE TODO: split this out into individual tests
-
-            // ValueTask should be every bit as good as Task
-            var source_a = @"
+            if (betterOverload != null) betterOverload = "static string " + betterOverload + " => \"better\";"; else betterOverload = "";
+            if (worseOverload != null) worseOverload = "static string " + worseOverload + " => \"worse\";"; else worseOverload = "";
+            var source = $@"
 using System;
 using System.Threading.Tasks;
-class Program {
-    static void Main() { MainAsync().GetAwaiter().GetResult(); }
-    static async Task MainAsync() {
-        Console.Write(a3(async () => { await Task.Yield(); return 3; }));
-        Console.Write(a3n(async () => { await Task.Yield(); }));
-        Console.Write(a4(async () => { await Task.Yield(); return 3; }));
-        Console.Write(a5(() => 3));
-        Console.Write(a5(async () => { await Task.Yield(); return 3; }));
-        Console.Write(a6(async () => { await Task.Yield(); return 3; }));
-        Console.Write(a7(async () => { await Task.Yield(); return 3; }));
-        Console.Write(a8(async () => { await Task.Yield(); }));
-    }
-    static string a3(Func<ValueTask<int>> lambda) => ""|a3"";
-    static string a3n(Func<ValueTask> lambda) => ""|a3n""; 
-    static string a4<T>(Func<ValueTask<T>> lambda) => ""|T="" + typeof(T).Name;
-    static string a5<T>(Func<T> lambda) => ""|a5.T"";
-    static string a5<T>(Func<ValueTask<T>> lambda) => ""|a5.ValueTask<T>"";
-    static string a6(Func<ValueTask<int>> lambda) => ""|a6.int"";
-    static string a6(Func<ValueTask<double>> lambda) => ""|a6.double"";
-    static string a7(Func<ValueTask<short>> lambda) => ""|a7.short"";
-    static string a7(Func<ValueTask<byte>> lambda) => ""|a7.byte"";
-    static string a8(Action lambda) => ""|a8.Action"";
-    static string a8(Func<ValueTask> lambda) => ""|a8.Func<ValueTask>"";
-}";
-            var expected_a = "|a3|a3n|T=Int32|a5.T|a5.ValueTask<T>|a6.int|a7.byte|a8.Func<ValueTask>";
-            CompileAndVerify(source_a + ValueTaskSourceCode(false, false), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: expected_a);
-            CompileAndVerify(source_a + ValueTaskSourceCode(true, false), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: expected_a);
-            CompileAndVerify(source_a + ValueTaskSourceCode(false, true), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: expected_a);
-            CompileAndVerify(source_a + ValueTaskSourceCode(true, true), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: expected_a);
-
-
-            // I should be able to incrementally upgrade my API to ValueTask
-            var source_b = @"
-using System;
-using System.Threading.Tasks;
-class Program {
-    static void Main() { MainAsync().GetAwaiter().GetResult(); }
-    static async Task MainAsync() {
-        var v = await b1();
-        await b1n();
-        b6(async () => { await Task.Yield(); return 3; });
-        b6n(async () => { await Task.Yield(); });
-        //b7(async () => { await Task.Yield(); return 3; }); // expect ValueTask for efficiency, or Task for compat
-        //b7g(async () => { await Task.Yield(); return 3; }); // expect ValueTask for efficiency, or Task for compat
-        //b7n(async () => { await Task.Yield(); }); // expect ValueTask for efficiency, or Task for compat
-    }
-    static async ValueTask<int> b1() { await Task.Yield();  Console.Write(""|b1""); return 1; }
-    static async ValueTask b1n() { await Task.Yield(); Console.Write(""|b1n""); }
-    static void b6(Func<ValueTask<int>> lambda) { Console.Write(""|b6""); }
-    static void b6n(Func<ValueTask> lambda) { Console.Write(""|b6n""); }
-    static void b7(Func<Task<int>> lambda) { Console.Write(""|b7.Task""); }
-    static void b7(Func<ValueTask<int>> lambda) { Console.Write(""|b7.ValueTask""); }
-    static void b7g<T>(Func<Task<T>> lambda) { Console.Write(""|b7g.Task""); }
-    static void b7g<T>(Func<ValueTask<T>> lambda) { Console.Write(""|b7g.ValueTask""); }
-    static void b7n(Func<Task> lambda) { Console.Write(""|b7n.Task""); }
-    static void b7n(Func<ValueTask> lambda) { Console.Write(""|b7n.ValueTask""); }
-}";
-            var expected_b = "|b1|b1n|b6|b6n";
-            CompileAndVerify(source_b + ValueTaskSourceCode(false, false), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: expected_b);
-            CompileAndVerify(source_b + ValueTaskSourceCode(true, false), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: expected_b);
-            CompileAndVerify(source_b + ValueTaskSourceCode(false, true), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: expected_b);
-            CompileAndVerify(source_b + ValueTaskSourceCode(true, true), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: expected_b);
-
-            // Back-compat should be maintained
-            var source_c = @"
-using System;
-using System.Threading.Tasks;
-class Program {
-    static void Main() { MainAsync().GetAwaiter().GetResult(); }
-    static async Task MainAsync() {
-        //c1(async () => { await Task.Yield(); return 3; }); // expect c1.int for necessity, or c1.double for compat
-        c2(async () => { await Task.Yield(); return 3; });
-        //c3(async () => { await Task.Yield(); return 3; }); // expect Task for compat, or ValueTask for efficiency
-        //c3n(async () => { await Task.Yield(); }); // expect Task for compat, or ValueTask for efficiency
-        c4(async () => { await Task.Yield(); return 3; });
-        c4n(async () => { await Task.Yield(); });
-        //c5(async () => { await Task.Yield(); return 3; }); // expect Task for copmat, or ValueTask for efficiency
-        //c5n(async () => { await Task.Yield(); }); // expect Task for compat, or ValueTask for efficiency
-    }
-    static void c1(Func<Task<double>> lambda) { Console.Write(""|c1.double""); }
-    static void c1(Func<ValueTask<int>> lambda) { Console.Write(""|c1.int""); }
-    static void c2(Func<Task<short>> lambda) { Console.Write(""|c2.short""); }
-    static void c2(Func<ValueTask<byte>> lambda) { Console.Write(""|c2.byte""); }
-    static void c3(Func<Task<int>> lambda) { Console.Write(""|c3.Task""); }
-    static void c3(Func<ValueTask<int>> lambda) { Console.Write(""|c3.ValueTask""); }
-    static void c3n(Func<Task> lambda) { Console.Write(""|c3n.Task""); }
-    static void c3n(Func<ValueTask> lambda) { Console.Write(""|c3n.ValueTask""); }
-    static void c4<T>(Func<T> lambda) { Console.Write(""|c4.T""); }
-    static void c4<T>(Func<ValueTask<T>> lambda) { Console.Write(""|c4.ValueTask<T>""); }
-    static void c4n(Action lambda) { Console.Write(""|c4n.Action""); }
-    static void c4n(Func<ValueTask> lambda) { Console.Write(""|c4n.Func<ValueTask>""); }
-    static void c5<T>(Func<Task<T>> lambda) { Console.Write(""|c5.Task<T>""); }
-    static void c5<T>(Func<ValueTask<T>> lambda) { Console.Write(""|c5.ValueTask<T>""); }
-    static void c5n(Func<Task> lambda) { Console.Write(""|c5n.Task""); }
-    static void c5n(Func<ValueTask> lambda) { Console.Write(""|c5n.ValueTask""); }
-}";
-            var expected_c = "|c2.byte|c4.ValueTask<T>|c4n.Func<ValueTask>";
-            CompileAndVerify(source_c + ValueTaskSourceCode(false, false), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: expected_c);
-            CompileAndVerify(source_c + ValueTaskSourceCode(true, false), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: expected_c);
-            CompileAndVerify(source_c + ValueTaskSourceCode(false, true), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: expected_c);
-            CompileAndVerify(source_c + ValueTaskSourceCode(true, true), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: expected_c);
-
-
+class Program {{
+    #pragma warning disable CS1998
+    static void Main() {{ var s = ({arg}); Console.Write(s); }}
+    {betterOverload}
+    {worseOverload}
+}}
+";
+            CompileAndVerify(source + ValueTaskSourceCode(false, false), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "better");
+            CompileAndVerify(source + ValueTaskSourceCode(true, false), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "better");
+            CompileAndVerify(source + ValueTaskSourceCode(false, true), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "better");
+            CompileAndVerify(source + ValueTaskSourceCode(true, true), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "better");
         }
 
+        [Fact]
+        public void TasklikeA3() => TasklikeOverloads("f(async () => 3)",
+                                                      "f(Func<ValueTask<int>> lambda)",
+                                                      null);
+
+        [Fact]
+        public void TasklikeA3n() => TasklikeOverloads("f(async () => {})",
+                                                       "f(Func<ValueTask> lambda)",
+                                                       null);
+
+        [Fact]
+        public void TasklikeA4() => TasklikeOverloads("f(async () => 3)",
+                                                      "f<T>(Func<ValueTask<T>> labda)",
+                                                      null);
+
+        [Fact]
+        public void TasklikeA5s() => TasklikeOverloads("f(() => 3)",
+                                                       "f<T>(Func<T> lambda)",
+                                                       "f<T>(Func<ValueTask<T>> lambda)");
+
+        [Fact]
+        public void TasklikeA5a() => TasklikeOverloads("f(async () => 3)",
+                                                       "f<T>(Func<ValueTask<T>> lambda)",
+                                                       "f<T>(Func<T> lambda)");
+
+        [Fact]
+        public void TasklikeA6() => TasklikeOverloads("f(async () => 3)",
+                                                      "f(Func<ValueTask<int>> lambda)",
+                                                      "f(Func<ValueTask<double>> lambda)");
+
+        [Fact]
+        public void TasklikeA7() => TasklikeOverloads("f(async () => 3)",
+                                                      "f(Func<ValueTask<byte>> lambda)",
+                                                      "f(Func<ValueTask<short>> lambda)");
+
+        [Fact]
+        public void TasklikeA8() => TasklikeOverloads("f(async () => {})",
+                                                      "f(Func<ValueTask> lambda)",
+                                                      "f(Action lambda)");
+
+        [Fact]
+        public void TasklikeC1() => TasklikeOverloads("f(async () => 3)",
+                                                      "f(Func<ValueTask<int>> lambda)",
+                                                      "f(Func<Task<double>> lambda)");
+
+        [Fact]
+        public void TasklikeC2() => TasklikeOverloads("f(async () => 3)",
+                                                      "f(Func<ValueTask<byte>> lambda)",
+                                                      "f(Func<Task<short>> lambda)");
+
+        [Fact(Skip = "not yet implemented")]
+        public void TasklikeC3() => TasklikeOverloads("f(async () => 3)",
+                                                      "f(Func<Task<int>> lambda)",
+                                                      "f(Func<ValueTask<int>> lambda)");
+
+        [Fact(Skip = "not yet implemented")]
+        public void TasklikeC3g() => TasklikeOverloads("f(async () => 3)",
+                                                       "f<T>(Func<Task<int>> lambda)",
+                                                       "f<T>(Func<ValueTask<int>> lambda)");
+
+        [Fact(Skip = "not yet implemented")]
+        public void TasklikeC3n() => TasklikeOverloads("f(async () => {})",
+                                                       "f(Func<Task> lambda)",
+                                                       "f(Func<ValueTask> lambda)");
+
+        [Fact]
+        public void TasklikeC5() => TasklikeOverloads("f(async () => 3)",
+                                                      "f(Func<ValueTask<int>> lambda)",
+                                                      "f<T>(Func<Task<T>> lambda)");
 
         [Fact]
         public void AsyncTasklikeMethod()
