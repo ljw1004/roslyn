@@ -4,9 +4,10 @@ In C#6, async methods must return either `void` or `Task` or `Task<T>`. This pro
 
 > * **TRY IT OUT ONLINE:** [tryroslyn.azurewebsites.net](http://is.gd/Yjvb2P)
 > * **Download:** [ArbitraryAsyncReturns.zip](https://github.com/ljw1004/roslyn/raw/features/async-return/ArbitraryAsyncReturns.zip) [22mb]
-> * **Install:** Unzip the file. Quit VS. Double-click to install in this order: (1) Roslyn.VisualStudio.Setup.vsix, (2) Roslyn.Compilers.Extension.vsix, (3) ExpressionEvaluatorPackage.vsix. I don't think the others are needed.
-> * **Test:** the zip file contains a sample project
-> * **Uninstall:** I've usually been able to go to within Visual Studio to Tools>Extensions, search for Roslyn, and uninstall in the order (1) Expression Evaluators, (2) Compilers, (3) Language Service. Once that resulted in a broken VS that was unable to load C# projects, and I unbroke it by deleting the entire folder `%userprofile%\AppData\Roaming\Microsoft\VisualStudio` and `%userprofile%\AppData\Local\Microsoft\VisualStudio`. Doing so reset all my VS settings to default.
+> * **Install in VS2015:** From the zip-file, double-click on RoslynDeployment.VSIX
+> * **Install in .NETCore (OSX/Linux/Windows):** From the zip-file, copy the DLLs into (OSX) `/usr/local/share/dotnet/shared/Microsoft.NETCore.App/1.0.0-rc2-3002702` or (Windows) `C:\Program Files\dotnet\shared\Microsoft.NETCore.App\1.0.0-rc2-3002702`
+> * **Test:** In the zip-file there are sample projects for VS2015 and for .NETCore.
+> * **Uninstall:** For VS2015 go to Tools>Extensions, search for Roslyn, and uninstall the preview. For .NETCore you're on your own!
 > * **Watch:** I coded this prototype live in livecoding.tv, and you can watch recordings if you want: [livecoding.tv/ljw1004](https://www.livecoding.tv/ljw1004/)
 > * **Discuss:** please read the [Design rationale and alternatives](feature - arbitrary async returns - discussion.md), and then go to the [discussion thread](https://github.com/dotnet/roslyn/issues/10902)
 
