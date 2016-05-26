@@ -11,6 +11,10 @@ This sample measures perf, so you should test it in Release mode:
     dotnet restore
     dotnet run -c Release
 
+It's possible-but-fragile to patch Omnisharp (the VS-Code plugin from https://github.com/OmniSharp/omnisharp-vscode/releases )
+Success depends on whether the version of Omnisharp is close enough to the version of ArbitraryAsyncReturns. If it is,
+
+    OSX: cp *CodeAnalysis*.dll ~/.vscode/extensions/ms-vscode.csharp-1.0.12/.omnisharp/
 
 
 INSTRUCTIONS FOR VISUAL STUDIO 2015
