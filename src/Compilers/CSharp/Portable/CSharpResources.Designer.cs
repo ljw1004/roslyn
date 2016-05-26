@@ -899,7 +899,7 @@ namespace Microsoft.CodeAnalysis.CSharp {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The return type of an async method must be void, Task or Task&lt;T&gt;.
+        ///   Looks up a localized string similar to The return type of an async method must be void, Task, Task&lt;T&gt; or other tasklike.
         /// </summary>
         internal static string ERR_BadAsyncReturn {
             get {
