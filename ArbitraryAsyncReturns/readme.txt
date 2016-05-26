@@ -3,7 +3,7 @@ INSTRUCTIONS FOR .NET CORE COMMAND LINE
 
 I assumed you've installed .NETCore SDK. Patch it with the dlls...
 
-    OSX: sudo cp *CodeAnalysis*.dll /usr/local/share/dotnet/shared/Microsft.NETCore.App/1.0.0-rc2-3002702
+    OSX: sudo cp *CodeAnalysis*.dll /usr/local/share/dotnet/shared/Microsoft.NETCore.App/1.0.0-rc2-3002702
     Win: copy the DLLs into C:\Program Files\dotnet\shared\Microsoft.NETCore.App\1.0.0-rc2-3002702
 
 This sample measures perf, so you should test it in Release mode:
