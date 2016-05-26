@@ -7,6 +7,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a block scope.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface IBlockStatement : IOperation
     {
         /// <summary>
@@ -22,6 +26,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a local variable declaration statement.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface IVariableDeclarationStatement : IOperation
     {
         /// <summary>
@@ -33,6 +41,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a local variable declaration.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface IVariableDeclaration : IOperation
     {
         /// <summary>
@@ -48,6 +60,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a C# switch or VB Select Case statement.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface ISwitchStatement : IOperation
     {
         /// <summary>
@@ -63,6 +79,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a C# case or VB Case statement.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface ISwitchCase : IOperation
     {
         /// <summary>
@@ -78,6 +98,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a clause of a C# case or a VB Case.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface ICaseClause : IOperation
     {
         /// <summary>
@@ -114,6 +138,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents case x in C# or Case x in VB.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface ISingleValueCaseClause : ICaseClause
     {
         /// <summary>
@@ -129,6 +157,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents Case Is op x in VB.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface IRelationalCaseClause : ICaseClause
     {
         /// <summary>
@@ -136,7 +168,7 @@ namespace Microsoft.CodeAnalysis.Semantics
         /// </summary>
         IOperation Value { get; }
         /// <summary>
-        /// Relational operator used to compare the switch value with the case value. 
+        /// Relational operator used to compare the switch value with the case value.
         /// </summary>
         BinaryOperationKind Relation { get; }
     }
@@ -144,6 +176,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents Case x To y in VB.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface IRangeCaseClause : ICaseClause
     {
         /// <summary>
@@ -159,6 +195,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents an if statement in C# or an If statement in VB.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface IIfStatement : IOperation
     {
         /// <summary>
@@ -178,6 +218,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a C# while, for, foreach, or do statement, or a VB While, For, For Each, or Do statement.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface ILoopStatement : IOperation
     {
         /// <summary>
@@ -214,6 +258,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a C# while, for, or do statement, or a VB While, For, or Do statement.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface IForWhileUntilLoopStatement : ILoopStatement
     {
         /// <summary>
@@ -225,6 +273,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a C# while or do statement, or a VB While or Do statement.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface IWhileUntilLoopStatement : IForWhileUntilLoopStatement
     {
         /// <summary>
@@ -240,6 +292,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a C# for statement or a VB For statement.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface IForLoopStatement : IForWhileUntilLoopStatement
     {
         /// <summary>
@@ -259,6 +315,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a C# foreach statement or a VB For Each staement.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface IForEachLoopStatement : ILoopStatement
     {
         /// <summary>
@@ -278,6 +338,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a C# or VB label statement.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface ILabelStatement : IOperation
     {
         /// <summary>
@@ -293,6 +357,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a C# goto, break, or continue statement, or a VB GoTo, Exit ***, or Continue *** statement
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface IBranchStatement : IOperation
     {
         /// <summary>
@@ -316,6 +384,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a C# throw or a VB Throw statement.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface IThrowStatement : IOperation
     {
         /// <summary>
@@ -327,6 +399,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a C# return or a VB Return statement.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface IReturnStatement : IOperation
     {
         /// <summary>
@@ -338,6 +414,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a C# lock or a VB SyncLock statement.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface ILockStatement : IOperation
     {
         /// <summary>
@@ -353,6 +433,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a C# try or a VB Try statement.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface ITryStatement : IOperation
     {
         /// <summary>
@@ -372,6 +456,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a C# catch or VB Catch clause.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface ICatchClause : IOperation
     {
         /// <summary>
@@ -395,6 +483,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a C# using or VB Using statement.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface IUsingStatement : IOperation
     {
         /// <summary>
@@ -412,10 +504,14 @@ namespace Microsoft.CodeAnalysis.Semantics
         /// </summary>
         IOperation Value { get; }
     }
-    
+
     /// <summary>
     /// Represents a C# fixed staement.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface IFixedStatement : IOperation
     {
         /// <summary>
@@ -431,6 +527,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a C# or VB statement that consists solely of an expression.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface IExpressionStatement : IOperation
     {
         /// <summary>
@@ -442,6 +542,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a VB With statement.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface IWithStatement : IOperation
     {
         /// <summary>
@@ -457,6 +561,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Reprsents an empty statement.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface IEmptyStatement : IOperation
     {
     }
@@ -464,6 +572,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a VB Stop statement.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface IStopStatement : IOperation
     {
     }
@@ -471,6 +583,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a VB End statemnt.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface IEndStatement : IOperation
     {
     }
@@ -478,6 +594,10 @@ namespace Microsoft.CodeAnalysis.Semantics
     /// <summary>
     /// Represents a syntactically or semantically invalid C# or VB statement.
     /// </summary>
+    /// <remarks>
+    /// This interface is reserved for implementation by its associated APIs. We reserve the right to
+    /// change it in the future.
+    /// </remarks>
     public interface IInvalidStatement : IOperation
     {
     }
