@@ -365,29 +365,6 @@ namespace Microsoft.CodeAnalysis.CSharp
             // The spec specifically lists the collection, enumerator, and element types for arrays and dynamic.
             if (!builder.IsAsync && (collectionExprType.Kind == SymbolKind.ArrayType || collectionExprType.Kind == SymbolKind.DynamicType))
             {
-                // TASKLIKE: review that GetDefaultEnumerator sets up all of these things
-                //// NOTE: for arrays, we won't actually use any of these members - they're just for the API.
-                //builder.CollectionType = GetSpecialType(SpecialType.System_Collections_IEnumerable, diagnostics, _syntax);
-                //builder.ElementType =
-                //    collectionExprType.IsDynamic() ?
-                //    (_syntax.Type.IsVar ? (TypeSymbol)DynamicTypeSymbol.Instance : GetSpecialType(SpecialType.System_Object, diagnostics, _syntax)) :
-                //    ((ArrayTypeSymbol)collectionExprType).ElementType;
-
-                //// CONSIDER: 
-                //// For arrays none of these members will actually be emitted, so it seems strange to prevent compilation if they can't be found.
-                //// skip this work in the batch case? (If so, also special case string, which won't use the pattern methods.)
-                //builder.GetEnumeratorMethod = (MethodSymbol)GetSpecialTypeMember(SpecialMember.System_Collections_IEnumerable__GetEnumerator, diagnostics, _syntax);
-                //builder.CurrentPropertyGetter = (MethodSymbol)GetSpecialTypeMember(SpecialMember.System_Collections_IEnumerator__get_Current, diagnostics, _syntax);
-                //builder.MoveNextMethod = (MethodSymbol)GetSpecialTypeMember(SpecialMember.System_Collections_IEnumerator__MoveNext, diagnostics, _syntax);
-                //builder.MoveNextResultType = builder.MoveNextMethod?.ReturnType;
-
-                //builder.EnumeratorType = builder.GetEnumeratorMethod?.ReturnType;
-                //Debug.Assert((object)builder.GetEnumeratorMethod == null ||
-                //    builder.GetEnumeratorMethod.ReturnType == this.Compilation.GetSpecialType(SpecialType.System_Collections_IEnumerator));
-
-                //// We don't know the runtime type, so we will have to insert a runtime check for IDisposable (with a conditional call to IDisposable.Dispose).
-                //builder.NeedsDisposeMethod = true;
-
                 builder = GetDefaultEnumeratorInfo(builder, diagnostics, collectionExprType);
                 return true;
             }
@@ -545,7 +522,9 @@ namespace Microsoft.CodeAnalysis.CSharp
             builder.GetEnumeratorMethod = (MethodSymbol)GetSpecialTypeMember(SpecialMember.System_Collections_IEnumerable__GetEnumerator, diagnostics, _syntax);
             builder.CurrentPropertyGetter = (MethodSymbol)GetSpecialTypeMember(SpecialMember.System_Collections_IEnumerator__get_Current, diagnostics, _syntax);
             builder.MoveNextMethod = (MethodSymbol)GetSpecialTypeMember(SpecialMember.System_Collections_IEnumerator__MoveNext, diagnostics, _syntax);
+            builder.MoveNextResultType = builder.MoveNextMethod?.ReturnType;
 
+            builder.EnumeratorType = builder.GetEnumeratorMethod?.ReturnType;
             Debug.Assert((object)builder.GetEnumeratorMethod == null ||
                 builder.GetEnumeratorMethod.ReturnType == this.Compilation.GetSpecialType(SpecialType.System_Collections_IEnumerator));
 
