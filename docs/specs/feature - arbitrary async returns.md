@@ -402,6 +402,10 @@ void c3(Func<Task<int>> lambda)
 void c3(Func<ValueTask<int>> lambda)
 c3(async () => 3);                    //  <-- When I upgrade, this should still pick the Task overload
 
+void c3g<T>(Func<Task<T>> lambda)
+void c3g<T>(Func<ValueTask<T>> lambda)
+c3g(async () => 3);                    //  <-- When I upgrae, this should still pick the Task overload
+
 void c3n(Func<Task> lambda)
 void c3n(Func<ValueTask> lambda)
 c3n(async () => {});                  //  <-- when I upgrade, this should still pick the Task overload
