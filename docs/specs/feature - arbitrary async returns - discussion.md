@@ -57,7 +57,7 @@ In the following summary of these options, I'm writing out the existing rules an
 
 3. Otherwise [[Better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member)], if the two candidates have identical parameter types ***up to all tasklikes being considered the same*** but one candidate before substitution is more specific then prefer it.
 
-   (X) ***X.	Otherwise, if one candidate converted an async lambda to a task but the other converted it to a tasklike, the first candidate wins.***
+   ***(X) Otherwise, if one candidate converted an async lambda to a task but the other converted it to a tasklike, the first candidate wins.***
    
    > Because this comes after "most-specific" tiebreaker, it no longer needs the caveat about "unexpanded parameter types"
    
@@ -69,8 +69,8 @@ In the following summary of these options, I'm writing out the existing rules an
 
 3. Otherwise [[Better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member)], if the two candidates have identical parameter types ***up to all tasklikes being considered the same*** but one candidate before substitution is more specific then prefer it.
 
-   (X) ***X.	Otherwise, if one candidate converted an async lambda to a task but the other converted it to a tasklike, the first candidate wins.***
-   
+   > There seems less need for the (X) tie-breaker here: at least for ValueTask, it will have been handled by implicit conversions.
+
 
 #### Option "Obsolete for binary compatibility"
 
