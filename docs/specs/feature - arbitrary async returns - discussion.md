@@ -38,7 +38,7 @@ In the following summary of these options, I'm writing out the existing rules an
  
    > Because both `Task<int>` and `Tasklike<int>` are considered exact matches, the following tie-breaker about better conversion target via implicit conversion doesn't apply.
 
-2. Otherwise [[Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target)], if neither is an exact match and there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins. Otherwise recursively dig in: if both types are delegates then dig into their return types and prefer non-void over void; if the types are `Task<S1>` and `Task<S2>` ***or `TasklikeA<S1>` and `TasklikeA<S2>`*** then dig into `S1/S2`.
+2. Otherwise [[Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target)], if neither is an exact match and there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins. Otherwise recursively dig in: if both types are delegates then dig into their return types and prefer non-void over void; if the types are ***`TasklikeA<S1>` and `TasklikeA<S2>`*** then dig into `S1/S2`.
 
    > Unless we dig in, we lose the ability to distinguish `Func<ValueTask<short>>` vs `Func<ValueTask<byte>>`. I considered preferring `Task<S1>` over any `Tasklike<S2>` but that only caught cases already handled by the next clause anyway.
 
@@ -51,9 +51,9 @@ In the following summary of these options, I'm writing out the existing rules an
 #### Option "Equivalence but weakly prefer Task"
 
 1. If the arguments [exactly match](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) one candidate, it wins. An async lambda `async () => 3` is considered an exact match for a delegate with return type `Task<int>` ***and any other `Tasklike<int>`***; it's never an exact match for a void-returning delegate.
-2. Otherwise [[Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target)], if neither is an exact match and there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins. Otherwise recursively dig in: if both types are delegates then dig into their return types and prefer non-void over void; if the types are `Task<S1>` and `Task<S2>` ***or `TasklikeA<S1>` and `TasklikeB<S2>`*** then dig into `S1/S2`.
+2. Otherwise [[Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target)], if neither is an exact match and there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins. Otherwise recursively dig in: if both types are delegates then dig into their return types and prefer non-void over void; if the types are ***`TasklikeA<S1>` and `TasklikeB<S2>`*** then dig into `S1/S2`.
 
-   > This digs into even different tasklikes to avoid falling into the (X) tiebreaker-of-last-resort
+   > This digs into even different tasklikes to avoid -- as much as possible -- falling into the (X) tiebreaker-of-last-resort
 
 3. Otherwise [[Better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member)], if the two candidates have identical parameter types ***up to all tasklikes being considered the same*** but one candidate before substitution is more specific then prefer it.
 
@@ -62,10 +62,10 @@ In the following summary of these options, I'm writing out the existing rules an
    > Because this comes after "most-specific" tiebreaker, it no longer needs the caveat about "unexpanded parameter types"
    
    
-#### Option "Equivalence with weak preference for Task, but allow implicit-conversions to influence
+#### Option "Equivalence, but allow implicit-conversions to influence
 
 1. If the arguments [exactly match](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) one candidate, it wins. An async lambda `async () => 3` is considered an exact match for a delegate with return type `Task<int>` ***and any other `Tasklike<int>`***; it's never an exact match for a void-returning delegate.
-2. Otherwise [[Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target)], if neither is an exact match ***or both are an exact match***, and there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins. Otherwise recursively dig in: if both types are delegates then dig into their return types and prefer non-void over void; if the types are `Task<S1>` and `Task<S2>` ***or `TasklikeA<S1>` and `TasklikeB<S2>`*** then dig into `S1/S2`.
+2. Otherwise [[Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target)], if neither ***or both*** are an exact match, and there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins. Otherwise recursively dig in: if both types are delegates then dig into their return types and prefer non-void over void; if the types are ***`TasklikeA<S1>` and `TasklikeB<S2>`*** then dig into `S1/S2`.
 
 3. Otherwise [[Better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member)], if the two candidates have identical parameter types ***up to all tasklikes being considered the same*** but one candidate before substitution is more specific then prefer it.
 
