@@ -3,6 +3,85 @@
 *This document explores the design space for the feature proposal [arbitrary async returns](feature - arbitrary async returns.md).*
 
 
+
+## Discuss: overload resolution
+
+We've added a new conversion from async lambdas to delegates that return non-`Task` tasklike types (and we've added type inference rules to go with this). **Whenever you add a new conversion, it means that overload resolution will be impacted**. We have a few different options on the table for overload resolution, to make the impact as small as possible. No option is perfect, but we'll rank them on how well each option satisfies the [unit tests](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#unit-tests).
+
+* Do nothing, and rely on an implicit conversion `ValueTask<T> -> Task<T>`
+* Do almost nothing (just one small necessary tweak to [Exact match](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression)) and rely on the implicit conversion
+* Make `Task` and other `Tasklikes` mostly equivalent, but strongly prefer `Task`
+* Make `Task` and other `Tasklikes` almost completely equivalent, but weakly prefer `Task` if all else fails
+* Make `Task` and other `Tasklikes` almost completely equivalent, and let implicit conversions influence which one to pick; weakly prefer `Task` if all else fails.
+
+In the following summary of these options, I'm writing out the existing rules and using bold+italic ***to indicate what's specific to the option***. These steps are performed only after ruling out inapplicable candidates, and only after susbstituing in all generic type arguments.
+ 
+####  Option "Nothing" (rely on implicit conversion `ValueTask<T> -> Task<T>`)
+
+1. If the arguments [exactly match](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) one candidate, it wins. An async lambda `async () => 3` is considered an exact match for a delegate with return type `Task<int>`; it's never an exact match for a void-returning delegate.
+2. Otherwise [[Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target)], if neither is an exact match and there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins. Otherwise recursively dig in: if both types are delegates then dig into their return types and prefer non-void over void; if the types are `Task<S1>` and `Task<S2>` then dig into `S1/S2`.
+3. Otherwise [[Better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member)], if the two candidates have identical parameter types but one candidate before substitution is more specific then prefer it.
+
+#### Option "Almost Nothing" (rely on implicit conversion `ValueTask<T> -> Task<T>`)
+
+1. If the arguments [exactly match](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) one candidate, it wins. An async lambda `async () => 3` is considered an exact match for a delegate with return type `Task<int>` ***and any other `Tasklike<int>`***; it's never an exact match for a void-returning delegate.
+
+   > Without this "any other Tasklike" clause, Task candidates just obliterate all others
+
+2. Otherwise [[Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target)], if neither is an exact match and there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins. Otherwise recursively dig in: if both types are delegates then dig into their return types and prefer non-void over void; if the types are `Task<S1>` and `Task<S2>` then dig into `S1/S2`.
+3. Otherwise [[Better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member)], if the two candidates have identical parameter types but one candidate before substitution is more specific then prefer it.
+
+
+#### Option "Equivalence but strongly prefer Task"
+
+1. If the arguments [exactly match](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) one candidate, it wins. An async lambda `async () => 3` is considered an exact match for a delegate with return type `Task<int>` ***and any other `Tasklike<int>`***; it's never an exact match for a void-returning delegate.
+ 
+   > Because both `Task<int>` and `Tasklike<int>` are considered exact matches, the following tie-breaker about better conversion target via implicit conversion doesn't apply.
+
+2. Otherwise [[Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target)], if neither is an exact match and there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins. Otherwise recursively dig in: if both types are delegates then dig into their return types and prefer non-void over void; if the types are `Task<S1>` and `Task<S2>` ***or `TasklikeA<S1>` and `TasklikeA<S2>`*** then dig into `S1/S2`.
+
+   > Unless we dig in, we lose the ability to distinguish `Func<ValueTask<short>>` vs `Func<ValueTask<byte>>`. I considered preferring `Task<S1>` over any `Tasklike<S2>` but that only caught cases already handled by the next clause anyway.
+
+   ***(X) Otherwise, if one candidate converted an async lambda to a task but the other converted it to a tasklike, the first candidate wins. This only applies to tasklikes in the unexpanded parameter types.***
+   
+   > We need the caveat about "unexpanded parameter types" to allow the more-specific tie-breaker to kick in.
+
+3. Otherwise [[Better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member)], if the two candidates have identical parameter types ***up to all tasklikes being considered the same*** but one candidate before substitution is more specific then prefer it.
+
+#### Option "Equivalence but weakly prefer Task"
+
+1. If the arguments [exactly match](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) one candidate, it wins. An async lambda `async () => 3` is considered an exact match for a delegate with return type `Task<int>` ***and any other `Tasklike<int>`***; it's never an exact match for a void-returning delegate.
+2. Otherwise [[Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target)], if neither is an exact match and there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins. Otherwise recursively dig in: if both types are delegates then dig into their return types and prefer non-void over void; if the types are `Task<S1>` and `Task<S2>` ***or `TasklikeA<S1>` and `TasklikeB<S2>`*** then dig into `S1/S2`.
+
+   > This digs into even different tasklikes to avoid falling into the (X) tiebreaker-of-last-resort
+
+3. Otherwise [[Better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member)], if the two candidates have identical parameter types ***up to all tasklikes being considered the same*** but one candidate before substitution is more specific then prefer it.
+
+   (X) ***X.	Otherwise, if one candidate converted an async lambda to a task but the other converted it to a tasklike, the first candidate wins.***
+   
+   > Because this comes after "most-specific" tiebreaker, it no longer needs the caveat about "unexpanded parameter types"
+   
+   
+#### Option "Equivalence with weak preference for Task, but allow implicit-conversions to influence
+
+1. If the arguments [exactly match](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) one candidate, it wins. An async lambda `async () => 3` is considered an exact match for a delegate with return type `Task<int>` ***and any other `Tasklike<int>`***; it's never an exact match for a void-returning delegate.
+2. Otherwise [[Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target)], if neither is an exact match ***or both are an exact match***, and there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins. Otherwise recursively dig in: if both types are delegates then dig into their return types and prefer non-void over void; if the types are `Task<S1>` and `Task<S2>` ***or `TasklikeA<S1>` and `TasklikeB<S2>`*** then dig into `S1/S2`.
+
+3. Otherwise [[Better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member)], if the two candidates have identical parameter types ***up to all tasklikes being considered the same*** but one candidate before substitution is more specific then prefer it.
+
+   (X) ***X.	Otherwise, if one candidate converted an async lambda to a task but the other converted it to a tasklike, the first candidate wins.***
+   
+
+#### Option "Obsolete for binary compatibility"
+
+* The method modifier `obsolete(...) void f()` means that the method is emitted in IL, but is never considered applicable. You’d be allowed to have methods differ only in return-type so long as one is less obsolete than the other. This idea is fleshed out fully [here](https://github.com/dotnet/roslyn/issues/11583).
+
+
+### Comparison of overload options
+
+![comparison](https://raw.githubusercontent.com/ljw1004/roslyn/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns%20-%20comparison%20table.png)
+
+
 ## Discuss: back-compat breaks
 
 The tricky scenario is this:
@@ -253,7 +332,6 @@ var xk = k(async () => {return 3;});
 **Impossible:** The two general attempts aren't possible: they both fall down in the second step, when they attempt to look for `SetResult` methods on the builder type, in order to infer the builder's type. But this is circular since it presupposes knowing the builder type!
 
 
-
 ## Discuss: AwaitOnCompleted in the tasklike's builder?
 
 **Question:** Why does a tasklike's own builder decide how to implement `AwaitOnCompleted` and `AwaitUnsafeOnCompleted`?
@@ -327,7 +405,7 @@ class IAsyncActionWithProgressAsync<T>
 ```
 
 
-## Discuss: overload resolution with async lambdas
+## Discuss: how to use "more-specific" tie-breaker in overload resolution
 
 There's a thorny issue around type inference and overload resolution. The proposal has one solution for it. I want to outline the problem and discuss alternatives. We have to build up to the problem with some examples...
 
