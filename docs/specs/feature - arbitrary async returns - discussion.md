@@ -90,12 +90,9 @@ The tricky scenario is this:
 2. Still using C#6, we upgrade to use the latest NuGet `ValueTask` library which is where `ValueTask` becomes tasklike.
 3. We upgrade to C#7, and our existing overload resolution either starts to break with an ambiguity error, or silently picks a different overload.
 
-__Option1:__ *"All other things being equal, async lambdas still gravitate towards `Task`."* (You can see this already in type inference).
+The scenarios for this are covered under [unit tests: don't break back-compat](https://github.com/ljw1004/roslyn/blob/features/async-return/docs/specs/feature%20-%20arbitrary%20async%20returns.md#i-dont-want-to-break-backwards-compatibility). And the options to deal with it are covered in the section above about overload resolution.
 
-__Option2:__ *"We almost always prefer `Task`, even if other things aren't equal, so as to preserve back-compat as much as possible."* (I think this option is best). 
-
-__Option3:__ *"100% back-compat is so important that we will disallow async lambdas from returning non-Task tasklikes, since async lambdas are the sole source of back-compat issues."*
-
+This section spells things out in more detail.
 
 ```csharp
 // Example 1
@@ -141,45 +138,6 @@ h(async () => 3);
   * Given the change motivated by Example 2, then we'd need to ensure that the test for "identical up to tasklikes" is done *before* asking whether one candidate is better than the other candidate.
   * Alternatively, we could modify the change in Example2 so it only counts `Task` a better conversion target if that particular `Task` was actually present in the candidate -- not just arising from type inference.
 
-
-The above three examples seem simplistic. Let's try to consider *exhaustively* all the cases where two candidates are applicable but differ in their tasklikes...
-```csharp
-// CASE A: the argument is an async lambda, candidate1 parameter is a delegate with one tasklike return type,
-// and candidate2 parameter is a delegate with a different tasklike return type:
-void f(Func<Task<int>> lambda)
-void f(Func<ValueTask<int>> lambda)
-f(async () => 3);
-
-// CASE B: there's an implicit conversion between Task and a tasklike, and the candidate parameter is
-// a top-level tasklike
-void f(Task<string> x)
-void f(ValueTask<string> x)
-f(x);
-struct ValueTask<T>
-{
-  public static implicit operator Task<T> (ValueTask<T> vt) => ...;
-  public static implicit operator ValueTask<T> (Task<T> t) => ...;
-}
-
-// CASE C: the argument is a type with user-defined conversion operator to the two candidate parameter types,
-// and the two candidate parameter types differ in tasklikes:
-void f(IEnumerable<Task<string>> x)
-void f(IEnumerable<ValueTask<string>> x)
-f(new C());
-class C {
-  public static implicit operator IEnumerable<Task<string>> (C c) => null;
-  public static implicit operator IEnumerable<ValueTask<string>> (C c) => null;
-}
-
-// CASE D: one candidate parameter type involves Task<T>, and the other candidate parameter type involves
-// a user-created subtype SubTask<T>
-void f(IEnumerable<Task<string>> x)
-void f(IEnumerable<SubTask<string>> x)
-f(new SubTask<string>());
-class SubTask<T> : Task<T> { ... }
-```
-
-I think that cases A and B will be common.
 
 
 ## Discuss: the fate of `Task` vs `ValueTask`
