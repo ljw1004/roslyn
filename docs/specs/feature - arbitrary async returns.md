@@ -159,9 +159,8 @@ In the case where the builder type is a struct, and `sm` is also a struct, it's 
 Here informally are the proposed changes to overload resolution. I've written out a digest of the existing rules of overload resolution, and added in empasis ***the new parts from this proposal.***
 
 1. If the arguments [exactly match](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#exactly-matching-expression) one candidate, it wins. An async lambda `async () => 3` is considered an exact match for a delegate with return type `Task<int>` ***and any other `Tasklike<int>`***; it's never an exact match for a void-returning delegate.
-2. Otherwise [[Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target)], if neither is an exact match and there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins. Otherwise recursively dig in: if both types are delegates then dig into their return types and prefer non-void over void; if the types are `Task<S1>` and `Task<S2>` then dig into `S1/S2`; ***if the types are `TasklikeA<S1>` and `TasklikeB<S2>` then dig into `S1/S2` too***.
+2. Otherwise [[Better conversion target](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-conversion-target)], if neither ***or both*** are an exact match and there's an implicit conversion from one parameter type but not vice versa, then the "from" parameter wins. Otherwise recursively dig in: if both types are delegates then dig into their return types and prefer non-void over void; if the types are ***`TasklikeA<S1>` and `TasklikeB<S2>`*** then dig into `S1/S2`.
 3. Otherwise [[Better function member](https://github.com/ljw1004/csharpspec/blob/gh-pages/expressions.md#better-function-member)], if the two candidates have identical parameter types ***up to all tasklikes being considered the same*** but one candidate before substitution is more specific then prefer it.
-4. ***Otherwise, if one candidate converted an async lambda to a task but the other converted it to a different tasklike, the first candidate wins***.
 
 
 
@@ -338,7 +337,7 @@ void b6n(Func<ValueTask> lambda)     //  <-- library v2 has this API *instead*
 b6n(async () => {});                 //  <-- This code should work in v2 of the library
 ```
 
-__TEST b7:__ add overload with parameter `Func<ValueTask<T>>`. **[This test fails under the current proposal]**
+__TEST b7:__ add overload with parameter `Func<ValueTask<T>>`.
 
 ```csharp
 void b7(Func<Task<int>> lambda)        //  <-- library v1 has this API
