@@ -163,7 +163,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
                 diagnostics.Free();
                 return raceReturnType;
             }
-            if (this.IsAsync && !this.IsGenericTaskReturningAsync(_binder.Compilation) && !this.IsTaskReturningAsync(_binder.Compilation) && !this.IsVoidReturningAsync())
+            if (this.IsAsync && !this.IsGenericTasklikeReturningAsync(_binder.Compilation) && !this.IsNongenericTasklikeReturningAsync(_binder.Compilation) && !this.IsVoidReturningAsync())
             {
                 // The return type of an async method must be void, Task or Task<T>
                 diagnostics.Add(ErrorCode.ERR_BadAsyncReturn, this.Locations[0]);
