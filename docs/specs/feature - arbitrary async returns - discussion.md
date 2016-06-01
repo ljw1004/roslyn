@@ -507,6 +507,8 @@ class C<T> where T : MyTasklike {
 }
 ```
 
+**Delegate builder**. The `CreateAsyncMethodBuilder()` method must be a method -- it cannot be a delegate field, just as `GetAwaiter()` can't be a delegate field.
+
 **Incomplete builder**. The compiler should recognize the following method `f` as an async method that doesn't need a return statement, and should bind it accordingly. There is nothing wrong with the `async` modifier nor the absence of a `return` keyword. The fact that `MyTasklike`'s builder doesn't fulfill the pattern is an error that comes later on: it doesn't prevent the compiler from binding method `f`.
 ```cs
 class C { async MyTasklike f() { } }
