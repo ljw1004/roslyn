@@ -217,10 +217,10 @@ class Program {{
     {worseOverload}
 }}
 ";
-            CompileAndVerify(source + ValueTaskSourceCode(false, false), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "better");
+            //CompileAndVerify(source + ValueTaskSourceCode(false, false), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "better");
             CompileAndVerify(source + ValueTaskSourceCode(true, false), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "better");
-            CompileAndVerify(source + ValueTaskSourceCode(false, true), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "better");
-            CompileAndVerify(source + ValueTaskSourceCode(true, true), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "better");
+            //CompileAndVerify(source + ValueTaskSourceCode(false, true), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "better");
+            //CompileAndVerify(source + ValueTaskSourceCode(true, true), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "better");
         }
 
         [Fact]
@@ -264,6 +264,20 @@ class Program {{
                                                       "f(Action lambda)");
 
         [Fact]
+        public void TasklikeB7() => TasklikeOverloads("f(async () => 3)",
+                                                      "f(Func<ValueTask<int>> lambda)",
+                                                      "f(Func<Task<int>> lambda)");
+
+        [Fact]
+        public void TasklikeB7g() => TasklikeOverloads("f(async () => 3)",
+                                                       "f<T>(Func<ValueTask<T>> lambda)",
+                                                       "f<T>(Func<Task<T>> lambda)");
+
+        [Fact]
+        public void TasklikeB7n() => TasklikeOverloads("f(async () => {})",
+                                                       "f(Func<ValueTask> lambda)",
+                                                       "f(Func<Task> lambda)");
+        [Fact]
         public void TasklikeC1() => TasklikeOverloads("f(async () => 3)",
                                                       "f(Func<ValueTask<int>> lambda)",
                                                       "f(Func<Task<double>> lambda)");
@@ -273,25 +287,11 @@ class Program {{
                                                       "f(Func<ValueTask<byte>> lambda)",
                                                       "f(Func<Task<short>> lambda)");
 
-        [Fact(Skip = "not yet implemented")]
-        public void TasklikeC3() => TasklikeOverloads("f(async () => 3)",
-                                                      "f(Func<Task<int>> lambda)",
-                                                      "f(Func<ValueTask<int>> lambda)");
-
-        [Fact(Skip = "not yet implemented")]
-        public void TasklikeC3g() => TasklikeOverloads("f(async () => 3)",
-                                                       "f<T>(Func<Task<int>> lambda)",
-                                                       "f<T>(Func<ValueTask<int>> lambda)");
-
-        [Fact(Skip = "not yet implemented")]
-        public void TasklikeC3n() => TasklikeOverloads("f(async () => {})",
-                                                       "f(Func<Task> lambda)",
-                                                       "f(Func<ValueTask> lambda)");
-
         [Fact]
         public void TasklikeC5() => TasklikeOverloads("f(async () => 3)",
                                                       "f(Func<ValueTask<int>> lambda)",
                                                       "f<T>(Func<Task<T>> lambda)");
+
 
         [Fact]
         public void AsyncTasklikeMethod()

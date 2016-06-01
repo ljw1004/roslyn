@@ -7618,12 +7618,6 @@ namespace ConsoleApplication2
             var compilation = CreateCompilationWithMscorlib(source1, new[] { SystemCoreRef }, options: TestOptions.DebugExe);
 
             compilation.VerifyDiagnostics(
-    // (23,26): error CS0121: The call is ambiguous between the following methods or properties: 'Foo.IfNotNull<T, U>(T, Func<T, U>, params U[])' and 'Foo.IfNotNull<T, U>(T?, Func<T, U>)'
-    //             var d1 = val.IfNotNull(v => v / 100);
-    Diagnostic(ErrorCode.ERR_AmbigCall, "IfNotNull").WithArguments("ConsoleApplication2.Foo.IfNotNull<T, U>(T, System.Func<T, U>, params U[])", "ConsoleApplication2.Foo.IfNotNull<T, U>(T?, System.Func<T, U>)").WithLocation(23, 26),
-    // (24,26): error CS0121: The call is ambiguous between the following methods or properties: 'Foo.IfNotNull<T, U>(T, Func<T, U>, params U[])' and 'Foo.IfNotNull<T, U>(T?, Func<T, U>)'
-    //             var d2 = Foo.IfNotNull(val, v => v / 100);
-    Diagnostic(ErrorCode.ERR_AmbigCall, "IfNotNull").WithArguments("ConsoleApplication2.Foo.IfNotNull<T, U>(T, System.Func<T, U>, params U[])", "ConsoleApplication2.Foo.IfNotNull<T, U>(T?, System.Func<T, U>)").WithLocation(24, 26)
                 );
         }
 
@@ -7662,12 +7656,6 @@ namespace ConsoleApplication2
             var compilation = CreateCompilationWithMscorlib(source1, new[] { SystemCoreRef }, options: TestOptions.DebugExe);
 
             compilation.VerifyDiagnostics(
-    // (23,26): error CS0121: The call is ambiguous between the following methods or properties: 'Foo.IfNotNull<T, U>(T?, Func<T, U>)' and 'Foo.IfNotNull<T, U>(T, Func<T, U>, params U[])'
-    //             var d1 = val.IfNotNull(v => v / 100);
-    Diagnostic(ErrorCode.ERR_AmbigCall, "IfNotNull").WithArguments("ConsoleApplication2.Foo.IfNotNull<T, U>(T?, System.Func<T, U>)", "ConsoleApplication2.Foo.IfNotNull<T, U>(T, System.Func<T, U>, params U[])").WithLocation(23, 26),
-    // (24,26): error CS0121: The call is ambiguous between the following methods or properties: 'Foo.IfNotNull<T, U>(T?, Func<T, U>)' and 'Foo.IfNotNull<T, U>(T, Func<T, U>, params U[])'
-    //             var d2 = Foo.IfNotNull(val, v => v / 100);
-    Diagnostic(ErrorCode.ERR_AmbigCall, "IfNotNull").WithArguments("ConsoleApplication2.Foo.IfNotNull<T, U>(T?, System.Func<T, U>)", "ConsoleApplication2.Foo.IfNotNull<T, U>(T, System.Func<T, U>, params U[])").WithLocation(24, 26)
                 );
         }
 

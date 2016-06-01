@@ -1847,19 +1847,13 @@ namespace Microsoft.CodeAnalysis.CSharp
             bool t1MatchesExactly = ExpressionMatchExactly(node, t1, ref useSiteDiagnostics);
             bool t2MatchesExactly = ExpressionMatchExactly(node, t2, ref useSiteDiagnostics);
 
-            if (t1MatchesExactly)
+            if (t1MatchesExactly && !t2MatchesExactly)
             {
-                if (t2MatchesExactly)
-                {
-                    // both exactly match expression
-                    return BetterResult.Neither;
-                }
-
                 // - E exactly matches T1
                 okToDowngradeToNeither = lambdaOpt != null && CanDowngradeConversionFromLambdaToNeither(BetterResult.Left, lambdaOpt, t1, t2, ref useSiteDiagnostics, false);
                 return BetterResult.Left;
             }
-            else if (t2MatchesExactly)
+            else if (t2MatchesExactly && !t1MatchesExactly)
             {
                 // - E exactly matches T1
                 okToDowngradeToNeither = lambdaOpt != null && CanDowngradeConversionFromLambdaToNeither(BetterResult.Right, lambdaOpt, t1, t2, ref useSiteDiagnostics, false);
