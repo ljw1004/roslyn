@@ -50,163 +50,98 @@ struct ValueTask<T> { public static Task<T> CreateAsyncMethodBuilder() => null; 
             Assert.True(methodg.IsAsync);
         }
 
-        private static string ValueTaskSourceCode(bool implicitConversionToTask = false, bool implicitConversionFromTask = false)
+        [Fact]
+        public void AsyncTasklikeNotFromDelegate()
         {
-            return $@"
-public struct ValueTask {{
-    {(implicitConversionFromTask ? "public static implicit operator ValueTask(Task t) => new ValueTask(t);" : "")}
-    {(implicitConversionToTask ? "public static implicit operator Task(ValueTask vt) => new ValueTask();" : "")}
+            var source = @"
+using System;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 
-    private static readonly System.Threading.Tasks.Task _doneTask = System.Threading.Tasks.Task.FromResult(0);
-    internal readonly System.Threading.Tasks.Task _task;
-    public ValueTask(System.Threading.Tasks.Task task) {{ _task = task;  if (_task == null) throw new System.ArgumentNullException(nameof(task)); }}
-    public System.Threading.Tasks.Task AsTask() => _task ?? _doneTask;
-    public static ValueTask<T> FromResult<T>(T result) => new ValueTask<T>(result);
-    public static ValueTask<T> FromTask<T>(System.Threading.Tasks.Task<T> t) => new ValueTask<T>(t);
-    public static ValueTask FromResult() => new ValueTask();
-    public static ValueTask FromTask(System.Threading.Tasks.Task t) => new ValueTask(t);
+class Program
+{
+    static void Main()
+    {
+    }
 
-    public override string ToString() => _task == null ? System.Threading.Tasks.TaskStatus.RanToCompletion.ToString() : _task.Status.ToString();
-    public override int GetHashCode() => _task != null ? _task.GetHashCode() : 0;
-    public override bool Equals(object obj) => obj is ValueTask && Equals((ValueTask)obj);
-    public bool Equals(ValueTask other) => _task != null || other._task != null ? _task == other._task : true;
-    public static bool operator ==(ValueTask left, ValueTask right) => left.Equals(right);
-    public static bool operator !=(ValueTask left, ValueTask right) => !left.Equals(right);
+    static async Task f()
+    {
+        await new Awaitable();
+        await new Unawaitable(); // error: GetAwaiter must be a field not a delegate
+    }
 
-    public bool IsCompleted => _task == null || _task.IsCompleted;
-    public bool IsCompletedSuccessfully => _task == null || _task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion;
-    public bool IsFaulted => _task != null && _task.IsFaulted;
-    public bool IsCanceled => _task != null && _task.IsCanceled;
-    public System.Runtime.CompilerServices.ValueTaskAwaiter GetAwaiter() => new System.Runtime.CompilerServices.ValueTaskAwaiter(this);
-    public System.Runtime.CompilerServices.ConfiguredValueTaskAwaitable ConfigureAwait(bool continueOnCapturedContext) => new System.Runtime.CompilerServices.ConfiguredValueTaskAwaitable(this, continueOnCapturedContext: continueOnCapturedContext);
+    static async Tasklike g()
+    {
+        await (Task)null;
+    }
 
-    public static System.Runtime.CompilerServices.ValueTaskMethodBuilder CreateAsyncMethodBuilder() => new System.Runtime.CompilerServices.ValueTaskMethodBuilder();
-}}
+    static async UnTasklike h()
+    {
+        await (Task)null;
+    }
+}
 
-public struct ValueTask<T>
-{{
-    {(implicitConversionFromTask ? "public static implicit operator ValueTask<T>(System.Threading.Tasks.Task<T> task) => new ValueTask<T>(task);" : "")}
-    {(implicitConversionFromTask ? "public static implicit operator ValueTask<T>(T result) => new ValueTask<T>(result);" : "")}
-    {(implicitConversionToTask ? "public static implicit operator System.Threading.Tasks.Task<T>(ValueTask<T> vt) => vt.AsTask();" : "")}
+class Awaitable
+{
+    public TaskAwaiter GetAwaiter() => (Task.FromResult(1) as Task).GetAwaiter();
+}
 
-    internal readonly System.Threading.Tasks.Task<T> _task;
-    internal readonly T _result;
-    public ValueTask(System.Threading.Tasks.Task<T> task) {{ _task = task; _result = default(T); if (_task == null) throw new System.ArgumentNullException(nameof(task)); }}
-    public ValueTask(T result) {{ _task = null; _result = result; }}
-    public System.Threading.Tasks.Task<T> AsTask() => _task ?? System.Threading.Tasks.Task.FromResult(_result);
+class Unawaitable
+{
+    public Func<TaskAwaiter> GetAwaiter = () => (Task.FromResult(1) as Task).GetAwaiter();
+}
 
-    public override string ToString() => _task == null ? _result.ToString() : _task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion ? _task.Result.ToString() : _task.Status.ToString();
-    public override int GetHashCode() => _task != null ? _task.GetHashCode() : _result != null ? _result.GetHashCode() : 0;
-    public override bool Equals(object obj) => obj is ValueTask<T> && Equals((ValueTask<T>)obj);
-    public bool Equals(ValueTask<T> other) => _task != null || other._task != null ? _task == other._task : System.Collections.Generic.EqualityComparer<T>.Default.Equals(_result, other._result);
-    public static bool operator ==(ValueTask<T> left, ValueTask<T> right) => left.Equals(right);
-    public static bool operator !=(ValueTask<T> left, ValueTask<T> right) => !left.Equals(right);
+public class Tasklike {
+    public static TasklikeMethodBuilder CreateAsyncMethodBuilder() => null;
+}
 
-    public bool IsCompleted => _task == null || _task.IsCompleted;
-    public bool IsCompletedSuccessfully => _task == null || _task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion;
-    public bool IsFaulted => _task != null && _task.IsFaulted;
-    public bool IsCanceled => _task != null && _task.IsCanceled;
-    public System.Runtime.CompilerServices.ValueTaskAwaiter<T> GetAwaiter() => new System.Runtime.CompilerServices.ValueTaskAwaiter<T>(this);
-    public System.Runtime.CompilerServices.ConfiguredValueTaskAwaitable<T> ConfigureAwait(bool continueOnCapturedContext) => new System.Runtime.CompilerServices.ConfiguredValueTaskAwaitable<T>(this, continueOnCapturedContext: continueOnCapturedContext);
+public class UnTasklike
+{
+    public static Func<UnTasklikeMethodBuilder> CreateAsyncMethodBuilder = () => null;
+}
 
-    public static System.Runtime.CompilerServices.ValueTaskMethodBuilder<T> CreateAsyncMethodBuilder() => new System.Runtime.CompilerServices.ValueTaskMethodBuilder<T>();
-}}
+public class TasklikeMethodBuilder
+{
+    public void Start<TStateMachine>(ref TStateMachine stateMachine) where TStateMachine : IAsyncStateMachine { }
+    public void SetStateMachine(IAsyncStateMachine stateMachine) { }
+    public void SetResult() { }
+    public void SetException(Exception exception) { }
+    private void EnsureTaskBuilder() { }
+    public Tasklike Task => null;
+    public void AwaitOnCompleted<TAwaiter, TStateMachine>(ref TAwaiter awaiter, ref TStateMachine stateMachine) where TAwaiter : INotifyCompletion where TStateMachine : IAsyncStateMachine { }
+    public void AwaitUnsafeOnCompleted<TAwaiter, TStateMachine>(ref TAwaiter awaiter, ref TStateMachine stateMachine) where TAwaiter : ICriticalNotifyCompletion where TStateMachine : IAsyncStateMachine { }
+}
 
-namespace System.Runtime.CompilerServices
-{{
-
-    public struct ValueTaskMethodBuilder
-    {{
-        internal AsyncTaskMethodBuilder _taskBuilder; internal bool GotBuilder;
-        internal bool GotResult;
-        public void Start<TStateMachine>(ref TStateMachine stateMachine) where TStateMachine : IAsyncStateMachine => stateMachine.MoveNext();
-        public void SetStateMachine(IAsyncStateMachine stateMachine) {{ EnsureTaskBuilder(); _taskBuilder.SetStateMachine(stateMachine); }}
-        public void SetResult() {{ if (GotBuilder) _taskBuilder.SetResult(); GotResult = true; }}
-        public void SetException(Exception exception) {{ EnsureTaskBuilder(); _taskBuilder.SetException(exception); }}
-        private void EnsureTaskBuilder() {{ if (!GotBuilder && GotResult) throw new InvalidOperationException(); if (!GotBuilder) _taskBuilder = AsyncTaskMethodBuilder.Create(); GotBuilder = true; }}
-        public ValueTask Task {{ get {{ if (GotResult && !GotBuilder) return new ValueTask(); EnsureTaskBuilder(); return new ValueTask(_taskBuilder.Task); }} }}
-        public void AwaitOnCompleted<TAwaiter, TStateMachine>(ref TAwaiter awaiter, ref TStateMachine stateMachine) where TAwaiter : INotifyCompletion where TStateMachine : IAsyncStateMachine {{ EnsureTaskBuilder(); _taskBuilder.AwaitOnCompleted(ref awaiter, ref stateMachine); }}
-        public void AwaitUnsafeOnCompleted<TAwaiter, TStateMachine>(ref TAwaiter awaiter, ref TStateMachine stateMachine) where TAwaiter : ICriticalNotifyCompletion where TStateMachine : IAsyncStateMachine {{ EnsureTaskBuilder(); _taskBuilder.AwaitUnsafeOnCompleted(ref awaiter, ref stateMachine); }}
-    }}
-
-    public struct ValueTaskMethodBuilder<T>
-    {{
-        internal AsyncTaskMethodBuilder<T> _taskBuilder; internal bool GotBuilder;
-        internal T _result; internal bool GotResult;
-        public void Start<TStateMachine>(ref TStateMachine stateMachine) where TStateMachine : IAsyncStateMachine => stateMachine.MoveNext();
-        public void SetStateMachine(IAsyncStateMachine stateMachine) {{ EnsureTaskBuilder(); _taskBuilder.SetStateMachine(stateMachine); }}
-        public void SetResult(T result) {{ if (GotBuilder) _taskBuilder.SetResult(result); else _result = result; GotResult = true; }}
-        public void SetException(Exception exception) {{ EnsureTaskBuilder(); _taskBuilder.SetException(exception); }}
-        private void EnsureTaskBuilder() {{ if (!GotBuilder && GotResult) throw new InvalidOperationException(); if (!GotBuilder) _taskBuilder = AsyncTaskMethodBuilder<T>.Create(); GotBuilder = true; }}
-        public ValueTask<T> Task {{ get {{ if (GotResult && !GotBuilder) return new ValueTask<T>(_result); EnsureTaskBuilder(); return new ValueTask<T>(_taskBuilder.Task); }} }}
-        public void AwaitOnCompleted<TAwaiter, TStateMachine>(ref TAwaiter awaiter, ref TStateMachine stateMachine) where TAwaiter : INotifyCompletion where TStateMachine : IAsyncStateMachine {{ EnsureTaskBuilder(); _taskBuilder.AwaitOnCompleted(ref awaiter, ref stateMachine); }}
-        public void AwaitUnsafeOnCompleted<TAwaiter, TStateMachine>(ref TAwaiter awaiter, ref TStateMachine stateMachine) where TAwaiter : ICriticalNotifyCompletion where TStateMachine : IAsyncStateMachine {{ EnsureTaskBuilder(); _taskBuilder.AwaitUnsafeOnCompleted(ref awaiter, ref stateMachine); }}
-    }}
-
-    public struct ValueTaskAwaiter<T> : ICriticalNotifyCompletion
-    {{
-        private readonly ValueTask<T> _value;
-        internal ValueTaskAwaiter(ValueTask<T> value) {{ _value = value; }}
-        public bool IsCompleted => _value.IsCompleted;
-        public T GetResult() => (_value._task == null) ? _value._result : _value._task.GetAwaiter().GetResult();
-        public void OnCompleted(Action continuation) => _value.AsTask().ConfigureAwait(continueOnCapturedContext: true).GetAwaiter().OnCompleted(continuation);
-        public void UnsafeOnCompleted(Action continuation) => _value.AsTask().ConfigureAwait(continueOnCapturedContext: true).GetAwaiter().UnsafeOnCompleted(continuation);
-    }}
-
-    public struct ConfiguredValueTaskAwaitable<T>
-    {{
-        private readonly ValueTask<T> _value;
-        private readonly bool _continueOnCapturedContext;
-        internal ConfiguredValueTaskAwaitable(ValueTask<T> value, bool continueOnCapturedContext) {{ _value = value; _continueOnCapturedContext = continueOnCapturedContext; }}
-        public ConfiguredValueTaskAwaiter GetAwaiter() => new ConfiguredValueTaskAwaiter(_value, _continueOnCapturedContext);
-        public struct ConfiguredValueTaskAwaiter : ICriticalNotifyCompletion
-        {{
-            private readonly ValueTask<T> _value;
-            private readonly bool _continueOnCapturedContext;
-            internal ConfiguredValueTaskAwaiter(ValueTask<T> value, bool continueOnCapturedContext) {{ _value = value; _continueOnCapturedContext = continueOnCapturedContext; }}
-            public bool IsCompleted => _value.IsCompleted;
-            public T GetResult() => _value._task == null ? _value._result : _value._task.GetAwaiter().GetResult();
-            public void OnCompleted(Action continuation) => _value.AsTask().ConfigureAwait(_continueOnCapturedContext).GetAwaiter().OnCompleted(continuation);
-            public void UnsafeOnCompleted(Action continuation) => _value.AsTask().ConfigureAwait(_continueOnCapturedContext).GetAwaiter().UnsafeOnCompleted(continuation);
-        }}
-    }}
-
-    public struct ValueTaskAwaiter : ICriticalNotifyCompletion
-    {{
-        private readonly ValueTask _value;
-        internal ValueTaskAwaiter(ValueTask value) {{ _value = value; }}
-        public bool IsCompleted => _value.IsCompleted;
-        public void GetResult() => _value._task?.GetAwaiter().GetResult();
-        public void OnCompleted(Action continuation) => _value.AsTask().ConfigureAwait(continueOnCapturedContext: true).GetAwaiter().OnCompleted(continuation);
-        public void UnsafeOnCompleted(Action continuation) => _value.AsTask().ConfigureAwait(continueOnCapturedContext: true).GetAwaiter().UnsafeOnCompleted(continuation);
-    }}
-
-    public struct ConfiguredValueTaskAwaitable
-    {{
-        private readonly ValueTask _value;
-        private readonly bool _continueOnCapturedContext;
-        internal ConfiguredValueTaskAwaitable(ValueTask value, bool continueOnCapturedContext) {{ _value = value; _continueOnCapturedContext = continueOnCapturedContext; }}
-        public ConfiguredValueTaskAwaiter GetAwaiter() => new ConfiguredValueTaskAwaiter(_value, _continueOnCapturedContext);
-        public struct ConfiguredValueTaskAwaiter : ICriticalNotifyCompletion
-        {{
-            private readonly ValueTask _value;
-            private readonly bool _continueOnCapturedContext;
-            internal ConfiguredValueTaskAwaiter(ValueTask value, bool continueOnCapturedContext) {{ _value = value; _continueOnCapturedContext = continueOnCapturedContext; }}
-            public bool IsCompleted => _value.IsCompleted;
-            public void GetResult() => _value._task?.GetAwaiter().GetResult();
-            public void OnCompleted(Action continuation) => _value.AsTask().ConfigureAwait(_continueOnCapturedContext).GetAwaiter().OnCompleted(continuation);
-            public void UnsafeOnCompleted(Action continuation) => _value.AsTask().ConfigureAwait(_continueOnCapturedContext).GetAwaiter().UnsafeOnCompleted(continuation);
-        }}
-    }}
-
-}}
+public class UnTasklikeMethodBuilder
+{
+    public void Start<TStateMachine>(ref TStateMachine stateMachine) where TStateMachine : IAsyncStateMachine { }
+    public void SetStateMachine(IAsyncStateMachine stateMachine) { }
+    public void SetResult() { }
+    public void SetException(Exception exception) { }
+    private void EnsureTaskBuilder() { }
+    public UnTasklike Task => null;
+    public void AwaitOnCompleted<TAwaiter, TStateMachine>(ref TAwaiter awaiter, ref TStateMachine stateMachine) where TAwaiter : INotifyCompletion where TStateMachine : IAsyncStateMachine { }
+    public void AwaitUnsafeOnCompleted<TAwaiter, TStateMachine>(ref TAwaiter awaiter, ref TStateMachine stateMachine) where TAwaiter : ICriticalNotifyCompletion where TStateMachine : IAsyncStateMachine { }
+}
 ";
+            CreateCompilationWithMscorlib45(source).VerifyDiagnostics(
+                // (15,9): error CS0118: 'GetAwaiter' is a field but is used like a method
+                //         await new Unawaitable(); // error: GetAwaiter must be a field not a delegate
+                Diagnostic(ErrorCode.ERR_BadSKknown, "await new Unawaitable()").WithArguments("GetAwaiter", "field", "method").WithLocation(15, 9),
+                // (23,29): error CS1983: The return type of an async method must be void, Task, Task<T> or other tasklike
+                //     static async UnTasklike h()
+                Diagnostic(ErrorCode.ERR_BadAsyncReturn, "h").WithLocation(23, 29),
+                // (23,29): error CS0161: 'Program.h()': not all code paths return a value
+                //     static async UnTasklike h()
+                Diagnostic(ErrorCode.ERR_ReturnExpected, "h").WithArguments("Program.h()").WithLocation(23, 29)
+            );
         }
 
-        internal void TasklikeOverloads(string arg, string betterOverload, string worseOverload)
+        internal bool VerifyTaskOverloads(string arg, string betterOverload, string worseOverload, string valueTaskCode = null, bool isError = false)
         {
             if (betterOverload != null) betterOverload = "static string " + betterOverload + " => \"better\";"; else betterOverload = "";
             if (worseOverload != null) worseOverload = "static string " + worseOverload + " => \"worse\";"; else worseOverload = "";
+            if (valueTaskCode == null) valueTaskCode = ValueTaskCode.ImpConv_None;
             var source = $@"
 using System;
 using System.Threading.Tasks;
@@ -216,81 +151,113 @@ class Program {{
     {betterOverload}
     {worseOverload}
 }}
+{valueTaskCode}
 ";
-            //CompileAndVerify(source + ValueTaskSourceCode(false, false), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "better");
-            CompileAndVerify(source + ValueTaskSourceCode(true, false), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "better");
-            //CompileAndVerify(source + ValueTaskSourceCode(false, true), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "better");
-            //CompileAndVerify(source + ValueTaskSourceCode(true, true), additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "better");
+            if (isError)
+            {
+                var compilation = CreateCompilationWithMscorlib45(source);
+                var diagnostics = compilation.GetDiagnostics();
+                Assert.True(diagnostics.Length == 1);
+                Assert.True(diagnostics.First().Code == (int)ErrorCode.ERR_AmbigCall);
+            }
+            else
+            {
+                CompileAndVerify(source, additionalRefs: new[] { MscorlibRef_v4_0_30316_17626 }, expectedOutput: "better");
+            }
+            return true;
         }
 
         [Fact]
-        public void TasklikeA3() => TasklikeOverloads("f(async () => 3)",
-                                                      "f(Func<ValueTask<int>> lambda)",
-                                                      null);
+        public bool TasklikeA3() => VerifyTaskOverloads("f(async () => 3)",
+                                                        "f(Func<ValueTask<int>> lambda)",
+                                                        null);
 
         [Fact]
-        public void TasklikeA3n() => TasklikeOverloads("f(async () => {})",
-                                                       "f(Func<ValueTask> lambda)",
-                                                       null);
+        public void TasklikeA3n() => VerifyTaskOverloads("f(async () => {})",
+                                                         "f(Func<ValueTask> lambda)",
+                                                         null);
 
         [Fact]
-        public void TasklikeA4() => TasklikeOverloads("f(async () => 3)",
-                                                      "f<T>(Func<ValueTask<T>> labda)",
-                                                      null);
+        public void TasklikeA4() => VerifyTaskOverloads("f(async () => 3)",
+                                                        "f<T>(Func<ValueTask<T>> labda)",
+                                                        null);
 
         [Fact]
-        public void TasklikeA5s() => TasklikeOverloads("f(() => 3)",
-                                                       "f<T>(Func<T> lambda)",
-                                                       "f<T>(Func<ValueTask<T>> lambda)");
+        public void TasklikeA5s() => VerifyTaskOverloads("f(() => 3)",
+                                                         "f<T>(Func<T> lambda)",
+                                                         "f<T>(Func<ValueTask<T>> lambda)");
 
         [Fact]
-        public void TasklikeA5a() => TasklikeOverloads("f(async () => 3)",
-                                                       "f<T>(Func<ValueTask<T>> lambda)",
-                                                       "f<T>(Func<T> lambda)");
+        public void TasklikeA5a() => VerifyTaskOverloads("f(async () => 3)",
+                                                         "f<T>(Func<ValueTask<T>> lambda)",
+                                                         "f<T>(Func<T> lambda)");
 
         [Fact]
-        public void TasklikeA6() => TasklikeOverloads("f(async () => 3)",
-                                                      "f(Func<ValueTask<int>> lambda)",
-                                                      "f(Func<ValueTask<double>> lambda)");
+        public void TasklikeA6() => VerifyTaskOverloads("f(async () => 3)",
+                                                        "f(Func<ValueTask<int>> lambda)",
+                                                        "f(Func<ValueTask<double>> lambda)");
 
         [Fact]
-        public void TasklikeA7() => TasklikeOverloads("f(async () => 3)",
-                                                      "f(Func<ValueTask<byte>> lambda)",
-                                                      "f(Func<ValueTask<short>> lambda)");
+        public void TasklikeA7() => VerifyTaskOverloads("f(async () => 3)",
+                                                        "f(Func<ValueTask<byte>> lambda)",
+                                                        "f(Func<ValueTask<short>> lambda)");
 
         [Fact]
-        public void TasklikeA8() => TasklikeOverloads("f(async () => {})",
-                                                      "f(Func<ValueTask> lambda)",
-                                                      "f(Action lambda)");
+        public void TasklikeA8() => VerifyTaskOverloads("f(async () => {})",
+                                                        "f(Func<ValueTask> lambda)",
+                                                        "f(Action lambda)");
 
         [Fact]
-        public void TasklikeB7() => TasklikeOverloads("f(async () => 3)",
-                                                      "f(Func<ValueTask<int>> lambda)",
-                                                      "f(Func<Task<int>> lambda)");
+        public void TasklikeB7_ic0() => VerifyTaskOverloads("f(async () => 3)",
+                                                           "f(Func<ValueTask<int>> lambda)",
+                                                           "f(Func<Task<int>> lambda)",
+                                                           isError:true);
 
         [Fact]
-        public void TasklikeB7g() => TasklikeOverloads("f(async () => 3)",
-                                                       "f<T>(Func<ValueTask<T>> lambda)",
-                                                       "f<T>(Func<Task<T>> lambda)");
+        public void TasklikeB7_ic1() => VerifyTaskOverloads("f(async () => 3)",
+                                                            "f(Func<ValueTask<int>> lambda)",
+                                                            "f(Func<Task<int>> lambda)",
+                                                            ValueTaskCode.ImpConv_ValueTask2Task);
+
 
         [Fact]
-        public void TasklikeB7n() => TasklikeOverloads("f(async () => {})",
-                                                       "f(Func<ValueTask> lambda)",
-                                                       "f(Func<Task> lambda)");
-        [Fact]
-        public void TasklikeC1() => TasklikeOverloads("f(async () => 3)",
-                                                      "f(Func<ValueTask<int>> lambda)",
-                                                      "f(Func<Task<double>> lambda)");
+        public void TasklikeB7g_ic0() => VerifyTaskOverloads("f(async () => 3)",
+                                                             "f<T>(Func<ValueTask<T>> lambda)",
+                                                             "f<T>(Func<Task<T>> lambda)",
+                                                             isError:true);
 
         [Fact]
-        public void TasklikeC2() => TasklikeOverloads("f(async () => 3)",
-                                                      "f(Func<ValueTask<byte>> lambda)",
-                                                      "f(Func<Task<short>> lambda)");
+        public void TasklikeB7g_ic1() => VerifyTaskOverloads("f(async () => 3)",
+                                                             "f<T>(Func<ValueTask<T>> lambda)",
+                                                             "f<T>(Func<Task<T>> lambda)",
+                                                             ValueTaskCode.ImpConv_ValueTask2Task);
 
         [Fact]
-        public void TasklikeC5() => TasklikeOverloads("f(async () => 3)",
-                                                      "f(Func<ValueTask<int>> lambda)",
-                                                      "f<T>(Func<Task<T>> lambda)");
+        public void TasklikeB7n_ic0() => VerifyTaskOverloads("f(async () => {})",
+                                                             "f(Func<ValueTask> lambda)",
+                                                             "f(Func<Task> lambda)",
+                                                             isError:true);
+
+        [Fact]
+        public void TasklikeB7n_ic1() => VerifyTaskOverloads("f(async () => {})",
+                                                             "f(Func<ValueTask> lambda)",
+                                                             "f(Func<Task> lambda)",
+                                                             ValueTaskCode.ImpConv_ValueTask2Task);
+
+        [Fact]
+        public void TasklikeC1() => VerifyTaskOverloads("f(async () => 3)",
+                                                        "f(Func<ValueTask<int>> lambda)",
+                                                        "f(Func<Task<double>> lambda)");
+
+        [Fact]
+        public void TasklikeC2() => VerifyTaskOverloads("f(async () => 3)",
+                                                        "f(Func<ValueTask<byte>> lambda)",
+                                                        "f(Func<Task<short>> lambda)");
+
+        [Fact]
+        public void TasklikeC5() => VerifyTaskOverloads("f(async () => 3)",
+                                                        "f(Func<ValueTask<int>> lambda)",
+                                                        "f<T>(Func<Task<T>> lambda)");
 
 
         [Fact]
@@ -4375,5 +4342,170 @@ public class Program
                 Diagnostic(ErrorCode.WRN_AsyncLacksAwaits, "async () => YAsync()").WithLocation(15, 21)
                 );
         }
+
+
+
+        class ValueTaskCode
+        {
+            private static string s_None, s_Task2ValueTask, s_ValueTask2Task, s_BothWays;
+            public static string ImpConv_None => s_None ?? (s_None = ValueTaskSourceCode(false,false));
+            public static string ImpConv_Task2ValueTask => s_Task2ValueTask ?? (s_Task2ValueTask = ValueTaskSourceCode(false,true));
+            public static string ImpConv_ValueTask2Task => s_ValueTask2Task ?? (s_ValueTask2Task = ValueTaskSourceCode(true,false));
+            public static string ImpConv_BothWays => s_BothWays ?? (s_BothWays = ValueTaskSourceCode(true,true));
+
+            private static string ValueTaskSourceCode(bool implicitConversionToTask = false, bool implicitConversionFromTask = false)
+            {
+                return $@"
+public struct ValueTask {{
+    {(implicitConversionFromTask ? "public static implicit operator ValueTask(Task t) => new ValueTask(t);" : "")}
+    {(implicitConversionToTask ? "public static implicit operator Task(ValueTask vt) => new ValueTask();" : "")}
+
+    private static readonly System.Threading.Tasks.Task _doneTask = System.Threading.Tasks.Task.FromResult(0);
+    internal readonly System.Threading.Tasks.Task _task;
+    public ValueTask(System.Threading.Tasks.Task task) {{ _task = task;  if (_task == null) throw new System.ArgumentNullException(nameof(task)); }}
+    public System.Threading.Tasks.Task AsTask() => _task ?? _doneTask;
+    public static ValueTask<T> FromResult<T>(T result) => new ValueTask<T>(result);
+    public static ValueTask<T> FromTask<T>(System.Threading.Tasks.Task<T> t) => new ValueTask<T>(t);
+    public static ValueTask FromResult() => new ValueTask();
+    public static ValueTask FromTask(System.Threading.Tasks.Task t) => new ValueTask(t);
+
+    public override string ToString() => _task == null ? System.Threading.Tasks.TaskStatus.RanToCompletion.ToString() : _task.Status.ToString();
+    public override int GetHashCode() => _task != null ? _task.GetHashCode() : 0;
+    public override bool Equals(object obj) => obj is ValueTask && Equals((ValueTask)obj);
+    public bool Equals(ValueTask other) => _task != null || other._task != null ? _task == other._task : true;
+    public static bool operator ==(ValueTask left, ValueTask right) => left.Equals(right);
+    public static bool operator !=(ValueTask left, ValueTask right) => !left.Equals(right);
+
+    public bool IsCompleted => _task == null || _task.IsCompleted;
+    public bool IsCompletedSuccessfully => _task == null || _task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion;
+    public bool IsFaulted => _task != null && _task.IsFaulted;
+    public bool IsCanceled => _task != null && _task.IsCanceled;
+    public System.Runtime.CompilerServices.ValueTaskAwaiter GetAwaiter() => new System.Runtime.CompilerServices.ValueTaskAwaiter(this);
+    public System.Runtime.CompilerServices.ConfiguredValueTaskAwaitable ConfigureAwait(bool continueOnCapturedContext) => new System.Runtime.CompilerServices.ConfiguredValueTaskAwaitable(this, continueOnCapturedContext: continueOnCapturedContext);
+
+    public static System.Runtime.CompilerServices.ValueTaskMethodBuilder CreateAsyncMethodBuilder() => new System.Runtime.CompilerServices.ValueTaskMethodBuilder();
+}}
+
+public struct ValueTask<T>
+{{
+    {(implicitConversionFromTask ? "public static implicit operator ValueTask<T>(System.Threading.Tasks.Task<T> task) => new ValueTask<T>(task);" : "")}
+    {(implicitConversionFromTask ? "public static implicit operator ValueTask<T>(T result) => new ValueTask<T>(result);" : "")}
+    {(implicitConversionToTask ? "public static implicit operator System.Threading.Tasks.Task<T>(ValueTask<T> vt) => vt.AsTask();" : "")}
+
+    internal readonly System.Threading.Tasks.Task<T> _task;
+    internal readonly T _result;
+    public ValueTask(System.Threading.Tasks.Task<T> task) {{ _task = task; _result = default(T); if (_task == null) throw new System.ArgumentNullException(nameof(task)); }}
+    public ValueTask(T result) {{ _task = null; _result = result; }}
+    public System.Threading.Tasks.Task<T> AsTask() => _task ?? System.Threading.Tasks.Task.FromResult(_result);
+
+    public override string ToString() => _task == null ? _result.ToString() : _task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion ? _task.Result.ToString() : _task.Status.ToString();
+    public override int GetHashCode() => _task != null ? _task.GetHashCode() : _result != null ? _result.GetHashCode() : 0;
+    public override bool Equals(object obj) => obj is ValueTask<T> && Equals((ValueTask<T>)obj);
+    public bool Equals(ValueTask<T> other) => _task != null || other._task != null ? _task == other._task : System.Collections.Generic.EqualityComparer<T>.Default.Equals(_result, other._result);
+    public static bool operator ==(ValueTask<T> left, ValueTask<T> right) => left.Equals(right);
+    public static bool operator !=(ValueTask<T> left, ValueTask<T> right) => !left.Equals(right);
+
+    public bool IsCompleted => _task == null || _task.IsCompleted;
+    public bool IsCompletedSuccessfully => _task == null || _task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion;
+    public bool IsFaulted => _task != null && _task.IsFaulted;
+    public bool IsCanceled => _task != null && _task.IsCanceled;
+    public System.Runtime.CompilerServices.ValueTaskAwaiter<T> GetAwaiter() => new System.Runtime.CompilerServices.ValueTaskAwaiter<T>(this);
+    public System.Runtime.CompilerServices.ConfiguredValueTaskAwaitable<T> ConfigureAwait(bool continueOnCapturedContext) => new System.Runtime.CompilerServices.ConfiguredValueTaskAwaitable<T>(this, continueOnCapturedContext: continueOnCapturedContext);
+
+    public static System.Runtime.CompilerServices.ValueTaskMethodBuilder<T> CreateAsyncMethodBuilder() => new System.Runtime.CompilerServices.ValueTaskMethodBuilder<T>();
+}}
+
+namespace System.Runtime.CompilerServices
+{{
+
+    public struct ValueTaskMethodBuilder
+    {{
+        internal AsyncTaskMethodBuilder _taskBuilder; internal bool GotBuilder;
+        internal bool GotResult;
+        public void Start<TStateMachine>(ref TStateMachine stateMachine) where TStateMachine : IAsyncStateMachine => stateMachine.MoveNext();
+        public void SetStateMachine(IAsyncStateMachine stateMachine) {{ EnsureTaskBuilder(); _taskBuilder.SetStateMachine(stateMachine); }}
+        public void SetResult() {{ if (GotBuilder) _taskBuilder.SetResult(); GotResult = true; }}
+        public void SetException(Exception exception) {{ EnsureTaskBuilder(); _taskBuilder.SetException(exception); }}
+        private void EnsureTaskBuilder() {{ if (!GotBuilder && GotResult) throw new InvalidOperationException(); if (!GotBuilder) _taskBuilder = AsyncTaskMethodBuilder.Create(); GotBuilder = true; }}
+        public ValueTask Task {{ get {{ if (GotResult && !GotBuilder) return new ValueTask(); EnsureTaskBuilder(); return new ValueTask(_taskBuilder.Task); }} }}
+        public void AwaitOnCompleted<TAwaiter, TStateMachine>(ref TAwaiter awaiter, ref TStateMachine stateMachine) where TAwaiter : INotifyCompletion where TStateMachine : IAsyncStateMachine {{ EnsureTaskBuilder(); _taskBuilder.AwaitOnCompleted(ref awaiter, ref stateMachine); }}
+        public void AwaitUnsafeOnCompleted<TAwaiter, TStateMachine>(ref TAwaiter awaiter, ref TStateMachine stateMachine) where TAwaiter : ICriticalNotifyCompletion where TStateMachine : IAsyncStateMachine {{ EnsureTaskBuilder(); _taskBuilder.AwaitUnsafeOnCompleted(ref awaiter, ref stateMachine); }}
+    }}
+
+    public struct ValueTaskMethodBuilder<T>
+    {{
+        internal AsyncTaskMethodBuilder<T> _taskBuilder; internal bool GotBuilder;
+        internal T _result; internal bool GotResult;
+        public void Start<TStateMachine>(ref TStateMachine stateMachine) where TStateMachine : IAsyncStateMachine => stateMachine.MoveNext();
+        public void SetStateMachine(IAsyncStateMachine stateMachine) {{ EnsureTaskBuilder(); _taskBuilder.SetStateMachine(stateMachine); }}
+        public void SetResult(T result) {{ if (GotBuilder) _taskBuilder.SetResult(result); else _result = result; GotResult = true; }}
+        public void SetException(Exception exception) {{ EnsureTaskBuilder(); _taskBuilder.SetException(exception); }}
+        private void EnsureTaskBuilder() {{ if (!GotBuilder && GotResult) throw new InvalidOperationException(); if (!GotBuilder) _taskBuilder = AsyncTaskMethodBuilder<T>.Create(); GotBuilder = true; }}
+        public ValueTask<T> Task {{ get {{ if (GotResult && !GotBuilder) return new ValueTask<T>(_result); EnsureTaskBuilder(); return new ValueTask<T>(_taskBuilder.Task); }} }}
+        public void AwaitOnCompleted<TAwaiter, TStateMachine>(ref TAwaiter awaiter, ref TStateMachine stateMachine) where TAwaiter : INotifyCompletion where TStateMachine : IAsyncStateMachine {{ EnsureTaskBuilder(); _taskBuilder.AwaitOnCompleted(ref awaiter, ref stateMachine); }}
+        public void AwaitUnsafeOnCompleted<TAwaiter, TStateMachine>(ref TAwaiter awaiter, ref TStateMachine stateMachine) where TAwaiter : ICriticalNotifyCompletion where TStateMachine : IAsyncStateMachine {{ EnsureTaskBuilder(); _taskBuilder.AwaitUnsafeOnCompleted(ref awaiter, ref stateMachine); }}
+    }}
+
+    public struct ValueTaskAwaiter<T> : ICriticalNotifyCompletion
+    {{
+        private readonly ValueTask<T> _value;
+        internal ValueTaskAwaiter(ValueTask<T> value) {{ _value = value; }}
+        public bool IsCompleted => _value.IsCompleted;
+        public T GetResult() => (_value._task == null) ? _value._result : _value._task.GetAwaiter().GetResult();
+        public void OnCompleted(Action continuation) => _value.AsTask().ConfigureAwait(continueOnCapturedContext: true).GetAwaiter().OnCompleted(continuation);
+        public void UnsafeOnCompleted(Action continuation) => _value.AsTask().ConfigureAwait(continueOnCapturedContext: true).GetAwaiter().UnsafeOnCompleted(continuation);
+    }}
+
+    public struct ConfiguredValueTaskAwaitable<T>
+    {{
+        private readonly ValueTask<T> _value;
+        private readonly bool _continueOnCapturedContext;
+        internal ConfiguredValueTaskAwaitable(ValueTask<T> value, bool continueOnCapturedContext) {{ _value = value; _continueOnCapturedContext = continueOnCapturedContext; }}
+        public ConfiguredValueTaskAwaiter GetAwaiter() => new ConfiguredValueTaskAwaiter(_value, _continueOnCapturedContext);
+        public struct ConfiguredValueTaskAwaiter : ICriticalNotifyCompletion
+        {{
+            private readonly ValueTask<T> _value;
+            private readonly bool _continueOnCapturedContext;
+            internal ConfiguredValueTaskAwaiter(ValueTask<T> value, bool continueOnCapturedContext) {{ _value = value; _continueOnCapturedContext = continueOnCapturedContext; }}
+            public bool IsCompleted => _value.IsCompleted;
+            public T GetResult() => _value._task == null ? _value._result : _value._task.GetAwaiter().GetResult();
+            public void OnCompleted(Action continuation) => _value.AsTask().ConfigureAwait(_continueOnCapturedContext).GetAwaiter().OnCompleted(continuation);
+            public void UnsafeOnCompleted(Action continuation) => _value.AsTask().ConfigureAwait(_continueOnCapturedContext).GetAwaiter().UnsafeOnCompleted(continuation);
+        }}
+    }}
+
+    public struct ValueTaskAwaiter : ICriticalNotifyCompletion
+    {{
+        private readonly ValueTask _value;
+        internal ValueTaskAwaiter(ValueTask value) {{ _value = value; }}
+        public bool IsCompleted => _value.IsCompleted;
+        public void GetResult() => _value._task?.GetAwaiter().GetResult();
+        public void OnCompleted(Action continuation) => _value.AsTask().ConfigureAwait(continueOnCapturedContext: true).GetAwaiter().OnCompleted(continuation);
+        public void UnsafeOnCompleted(Action continuation) => _value.AsTask().ConfigureAwait(continueOnCapturedContext: true).GetAwaiter().UnsafeOnCompleted(continuation);
+    }}
+
+    public struct ConfiguredValueTaskAwaitable
+    {{
+        private readonly ValueTask _value;
+        private readonly bool _continueOnCapturedContext;
+        internal ConfiguredValueTaskAwaitable(ValueTask value, bool continueOnCapturedContext) {{ _value = value; _continueOnCapturedContext = continueOnCapturedContext; }}
+        public ConfiguredValueTaskAwaiter GetAwaiter() => new ConfiguredValueTaskAwaiter(_value, _continueOnCapturedContext);
+        public struct ConfiguredValueTaskAwaiter : ICriticalNotifyCompletion
+        {{
+            private readonly ValueTask _value;
+            private readonly bool _continueOnCapturedContext;
+            internal ConfiguredValueTaskAwaiter(ValueTask value, bool continueOnCapturedContext) {{ _value = value; _continueOnCapturedContext = continueOnCapturedContext; }}
+            public bool IsCompleted => _value.IsCompleted;
+            public void GetResult() => _value._task?.GetAwaiter().GetResult();
+            public void OnCompleted(Action continuation) => _value.AsTask().ConfigureAwait(_continueOnCapturedContext).GetAwaiter().OnCompleted(continuation);
+            public void UnsafeOnCompleted(Action continuation) => _value.AsTask().ConfigureAwait(_continueOnCapturedContext).GetAwaiter().UnsafeOnCompleted(continuation);
+        }}
+    }}
+
+}}
+";
+            }
+        }
+
     }
 }
