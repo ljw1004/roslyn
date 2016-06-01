@@ -62,7 +62,8 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         private BoundForEachStatement BindForEachPartsWorker(DiagnosticBag diagnostics, Binder originalBinder)
         {
-            BoundExpression collectionExpr = this.Next.BindValue(_syntax.Expression, diagnostics, BindValueKind.RValue); //bind with next to avoid seeing iteration variable
+            // Use the right binder to avoid seeing iteration variable
+            BoundExpression collectionExpr = originalBinder.GetBinder(_syntax.Expression).BindValue(_syntax.Expression, diagnostics, BindValueKind.RValue); 
             bool isAsync = (_syntax.AwaitKeyword.Kind() != SyntaxKind.None);
 
             ForEachEnumeratorInfo.Builder builder = new ForEachEnumeratorInfo.Builder();
@@ -78,7 +79,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             // Check for local variable conflicts in the *enclosing* binder; obviously the *current*
             // binder has a local that matches!
-            var hasNameConflicts = this.ValidateDeclarationNameConflictsInScope(IterationVariable, diagnostics);
+            var hasNameConflicts = originalBinder.ValidateDeclarationNameConflictsInScope(IterationVariable, diagnostics);
 
             // If the type in syntax is "var", then the type should be set explicitly so that the
             // Type property doesn't fail.
@@ -235,8 +236,8 @@ namespace Microsoft.CodeAnalysis.CSharp
 
         internal TypeSymbol InferCollectionElementType(DiagnosticBag diagnostics, ExpressionSyntax collectionSyntax)
         {
-            // Bind with next to avoid seeing iteration variable
-            BoundExpression collectionExpr = this.Next.BindValue(collectionSyntax, diagnostics, BindValueKind.RValue);
+            // Use the right binder to avoid seeing iteration variable
+            BoundExpression collectionExpr = this.GetBinder(collectionSyntax).BindValue(collectionSyntax, diagnostics, BindValueKind.RValue);
 
             ForEachEnumeratorInfo.Builder builder = new ForEachEnumeratorInfo.Builder();
             builder.IsAsync = (_syntax.AwaitKeyword.Kind() != SyntaxKind.None);
@@ -956,6 +957,21 @@ namespace Microsoft.CodeAnalysis.CSharp
             {
                 diagnostics.Add(ErrorCode.ERR_NoSuchMember, _syntax.Expression.Location, patternType, memberName);
             }
+        }
+
+        internal override ImmutableArray<LocalSymbol> GetDeclaredLocalsForScope(CSharpSyntaxNode scopeDesignator)
+        {
+            if (_syntax == scopeDesignator)
+            {
+                return this.Locals;
+            }
+
+            throw ExceptionUtilities.Unreachable;
+        }
+
+        internal override ImmutableArray<LocalFunctionSymbol> GetDeclaredLocalFunctionsForScope(CSharpSyntaxNode scopeDesignator)
+        {
+            throw ExceptionUtilities.Unreachable;
         }
     }
 }

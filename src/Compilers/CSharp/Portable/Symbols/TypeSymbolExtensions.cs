@@ -84,6 +84,11 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
             return type.IsNullableType() ? type.GetNullableUnderlyingType() : type;
         }
 
+        public static TypeSymbol TupleUnderlyingTypeOrSelf(this TypeSymbol type)
+        {
+            return type.TupleUnderlyingType ?? type;
+        }
+
         public static TypeSymbol EnumUnderlyingType(this TypeSymbol type)
         {
             return type.IsEnumType() ? type.GetEnumUnderlyingType() : type;
@@ -331,7 +336,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
             return false;
         }
 
-        private static readonly string[] s_expressionsNamespaceName = { "Expressions", "Linq", "System", "" };
+        private static readonly string[] s_expressionsNamespaceName = { "Expressions", "Linq", MetadataHelpers.SystemString, "" };
 
         private static bool CheckFullName(Symbol symbol, string[] names)
         {
@@ -466,6 +471,12 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
             {
                 bool isNestedNamedType = false;
 
+                // for tuple types, visit underlying type
+                if (current.IsTupleType)
+                {
+                    current = current.TupleUnderlyingType;
+                }
+
                 // Visit containing types from outer-most to inner-most.
                 switch (current.TypeKind)
                 {
@@ -504,12 +515,12 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
                     case TypeKind.Dynamic:
                     case TypeKind.TypeParameter:
                     case TypeKind.Submission:
+                    case TypeKind.Enum:
                         return null;
 
                     case TypeKind.Class:
                     case TypeKind.Struct:
                     case TypeKind.Interface:
-                    case TypeKind.Enum:
                     case TypeKind.Delegate:
                         foreach (var typeArg in ((NamedTypeSymbol)current).TypeArgumentsNoUseSiteDiagnostics)
                         {
@@ -1084,6 +1095,38 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
 
             allTypeParameters.Free();
             return result;
+        }
+
+        /// <summary>
+        /// Return the nearest type parameter with the given name in
+        /// this symbol or any enclosing symbol.
+        /// </summary>
+        internal static TypeParameterSymbol FindEnclosingTypeParameter(this Symbol methodOrType, string name)
+        {
+            while (methodOrType != null)
+            {
+                switch (methodOrType.Kind)
+                {
+                    case SymbolKind.Method:
+                    case SymbolKind.NamedType:
+                    case SymbolKind.ErrorType:
+                    case SymbolKind.Field:
+                    case SymbolKind.Property:
+                    case SymbolKind.Event:
+                        break;
+                    default:
+                        return null;
+                }
+                foreach (var typeParameter in methodOrType.GetMemberTypeParameters())
+                {
+                    if (typeParameter.Name == name)
+                    {
+                        return typeParameter;
+                    }
+                }
+                methodOrType = methodOrType.ContainingSymbol;
+            }
+            return null;
         }
 
         /// <summary>
