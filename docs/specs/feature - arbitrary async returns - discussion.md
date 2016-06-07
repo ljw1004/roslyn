@@ -3,6 +3,37 @@
 *This document explores the design space for the feature proposal [arbitrary async returns](feature - arbitrary async returns.md).*
 
 
+## Compilation notes and edge cases
+
+**Concrete tasklike**. The following kind of thing is conceptually impossible, because the compiler needs to know the *concrete* type of the tasklike that's being constructed (in order to construct it).
+```cs
+class C<T> where T : MyTasklike {
+    async T f() { } // error: the return type must be a concrete type
+}
+```
+
+**Delegate builder**. The `CreateAsyncMethodBuilder()` method must be a method -- it cannot be a delegate field, just as `GetAwaiter()` can't be a delegate field.
+
+**Incomplete builder**. The compiler should recognize the following method `f` as an async method that doesn't need a return statement, and should bind it accordingly. There is nothing wrong with the `async` modifier nor the absence of a `return` keyword. The fact that `MyTasklike`'s builder doesn't fulfill the pattern is an error that comes later on: it doesn't prevent the compiler from binding method `f`.
+```cs
+class C { async MyTasklike f() { } }
+class MyTasklike { public static string CreateAsyncMethodBuilder() => null; }
+```
+
+If the builder doesn't fulfill the pattern, well, that's an edge case. It should definitely give errors (like it does today e.g. if you have an async Task-returning method and target .NET4.0), but it doesn't matter to have high-quality errors (again it doesn't have high quality errors today). One unusual case of failed builder is where the builder has the wrong constraints on its generic type parameters. As far as I can tell, constraints aren't taken into account elsewhere in the compiler (the only other well known methods with generic parameters are below, and they're all in mscorlib, so no chance of them ever getting wrong)
+```
+System.Array.Empty
+System_Runtime_InteropServices_WindowsRuntime_WindowsRuntimeMarshal__AddEventHandler_T
+System_Runtime_InteropServices_WindowsRuntime_WindowsRuntimeMarshal__RemoveEventHandler_T
+System_Activator__CreateInstance_T
+System_Threading_Interlocked__CompareExchange_T
+Microsoft_VisualBasic_CompilerServices_Conversions__ToGenericParameter_T_Object
+```
+
+**Type inference performance**. Type inference uses a caching mechanism to cache the inferred type for a lambda, keyed off the parameter types of the target delegate. Prior to this feature the cache key ignored the *return type* of the target delegate. Now I made it include that return type in the cache key. Doing so is necessary for async lambdas, but unnecessary for everything else, and I'm worried that the change might have perf impact.
+
+**Overload resolution performance**. Overload resolution now has to compute whether parameter types are "identical up to tasklikes being the same". It only needs this as the final tie-breaker, which will be needed pretty rarely. My implementation computes identical-up-to-tasklikes by using a "Task Normal Form" in which all tasklikes are replaced by task. And my implementation computes this task normal form eagerly for every single paramter. I'm worried this might have perf impact.
+
 
 ## Discuss: overload resolution
 
@@ -498,30 +529,6 @@ Support for these debugger features will involve further changes to the async me
   * If you return `null` from this method, or if the method is absent or has the wrong return type, then the IDE will never be able to display async callstacks beyond the point of an async tasklike-returning method. This will make users unhappy.
 
 
-## Compilation notes and edge cases
-
-**Concrete tasklike**. The following kind of thing is conceptually impossible, because the compiler needs to know the *concrete* type of the tasklike that's being constructed (in order to construct it).
-```cs
-class C<T> where T : MyTasklike {
-    async T f() { } // error: the return type must be a concrete type
-}
-```
-
-**Incomplete builder**. The compiler should recognize the following method `f` as an async method that doesn't need a return statement, and should bind it accordingly. There is nothing wrong with the `async` modifier nor the absence of a `return` keyword. The fact that `MyTasklike`'s builder doesn't fulfill the pattern is an error that comes later on: it doesn't prevent the compiler from binding method `f`.
-```cs
-class C { async MyTasklike f() { } }
-class MyTasklike { public static string CreateAsyncMethodBuilder() => null; }
-```
-
-If the builder doesn't fulfill the pattern, well, that's an edge case. It should definitely give errors (like it does today e.g. if you have an async Task-returning method and target .NET4.0), but it doesn't matter to have high-quality errors (again it doesn't have high quality errors today). One unusual case of failed builder is where the builder has the wrong constraints on its generic type parameters. As far as I can tell, constraints aren't taken into account elsewhere in the compiler (the only other well known methods with generic parameters are below, and they're all in mscorlib, so no chance of them ever getting wrong)
-```
-System.Array.Empty
-System_Runtime_InteropServices_WindowsRuntime_WindowsRuntimeMarshal__AddEventHandler_T
-System_Runtime_InteropServices_WindowsRuntime_WindowsRuntimeMarshal__RemoveEventHandler_T
-System_Activator__CreateInstance_T
-System_Threading_Interlocked__CompareExchange_T
-Microsoft_VisualBasic_CompilerServices_Conversions__ToGenericParameter_T_Object
-```
 
 ## Discuss: dynamic
 
