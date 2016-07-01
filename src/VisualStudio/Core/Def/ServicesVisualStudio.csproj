@@ -156,6 +156,8 @@
     <Compile Include="IRoslynTelemetrySetup.cs" />
     <Compile Include="Packaging\Interop\SVsRemoteControlService.cs" />
     <Compile Include="Packaging\IPackageServicesProxy.cs" />
+    <Compile Include="ReplayAdornment.cs" />
+    <Compile Include="ReplayHost.cs" />
     <Compile Include="SymbolSearch\AbstractDelayStartedService.cs" />
     <Compile Include="SymbolSearch\IAddReferenceDatabaseWrapper.cs" />
     <Compile Include="SymbolSearch\IDatabaseFactoryService.cs" />
@@ -207,6 +209,10 @@
     <ProjectReference Include="..\..\..\Compilers\Core\Portable\CodeAnalysis.csproj">
       <Project>{1EE8CAD3-55F9-4D91-96B2-084641DA9A6C}</Project>
       <Name>CodeAnalysis</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\..\Compilers\CSharp\Portable\CSharpCodeAnalysis.csproj">
+      <Project>{b501a547-c911-4a05-ac6e-274a50dff30e}</Project>
+      <Name>CSharpCodeAnalysis</Name>
     </ProjectReference>
     <ProjectReference Include="..\..\..\Dependencies\DiaSymReader\DiaSymReader.csproj">
       <Project>{27b7a354-80cc-4bac-abf5-d4081056cea9}</Project>
