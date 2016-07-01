@@ -931,9 +931,7 @@ namespace Microsoft.CodeAnalysis
             }
             else
             {
-                // TODO: uncomment when fixing https://github.com/dotnet/roslyn/issues/5325
-                //isScriptFile = string.Equals(extension, ScriptFileExtension, StringComparison.OrdinalIgnoreCase);
-                isScriptFile = false;
+                isScriptFile = string.Equals(extension, ScriptFileExtension, StringComparison.OrdinalIgnoreCase);
             }
 
             return new CommandLineSourceFile(resolvedPath, isScriptFile);

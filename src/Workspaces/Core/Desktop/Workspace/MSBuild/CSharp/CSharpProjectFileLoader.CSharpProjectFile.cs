@@ -30,18 +30,14 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             public override SourceCodeKind GetSourceCodeKind(string documentFileName)
             {
-                // TODO: uncomment when fixing https://github.com/dotnet/roslyn/issues/5325
-                //return documentFileName.EndsWith(".csx", StringComparison.OrdinalIgnoreCase)
-                //    ? SourceCodeKind.Script
-                //    : SourceCodeKind.Regular;
-                return SourceCodeKind.Regular;
+                return documentFileName.EndsWith(".csx", StringComparison.OrdinalIgnoreCase)
+                    ? SourceCodeKind.Script
+                    : SourceCodeKind.Regular;
             }
 
             public override string GetDocumentExtension(SourceCodeKind sourceCodeKind)
             {
-                // TODO: uncomment when fixing https://github.com/dotnet/roslyn/issues/5325
-                //return (sourceCodeKind != SourceCodeKind.Script) ? ".cs" : ".csx";
-                return ".cs";
+                return (sourceCodeKind != SourceCodeKind.Script) ? ".cs" : ".csx";
             }
 
             public override async Task<ProjectFileInfo> GetProjectFileInfoAsync(CancellationToken cancellationToken)
