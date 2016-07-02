@@ -42,6 +42,12 @@
     </ItemGroup>
   </Target>
   <ItemGroup Label="Build Items">
+    <Compile Include="..\..\..\..\..\replay\ReplayCmd\ReplayHost.cs">
+      <Link>ReplayHost.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\..\..\replay\ReplayVsix\ReplayAdornment.cs">
+      <Link>ReplayAdornment.cs</Link>
+    </Compile>
     <Compile Include="..\..\..\Compilers\Core\Portable\InternalUtilities\ConcurrentLruCache.cs">
       <Link>Shared\ConcurrentLruCache.cs</Link>
     </Compile>
@@ -156,8 +162,6 @@
     <Compile Include="IRoslynTelemetrySetup.cs" />
     <Compile Include="Packaging\Interop\SVsRemoteControlService.cs" />
     <Compile Include="Packaging\IPackageServicesProxy.cs" />
-    <Compile Include="ReplayAdornment.cs" />
-    <Compile Include="ReplayHost.cs" />
     <Compile Include="SymbolSearch\AbstractDelayStartedService.cs" />
     <Compile Include="SymbolSearch\IAddReferenceDatabaseWrapper.cs" />
     <Compile Include="SymbolSearch\IDatabaseFactoryService.cs" />
