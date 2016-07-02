@@ -20,7 +20,7 @@ class Program
     {
         var workspace = Microsoft.CodeAnalysis.MSBuild.MSBuildWorkspace.Create();
         var solution = await workspace.OpenSolutionAsync(@"C:\Users\ljw10\Documents\Visual Studio 2015\Projects\ScriptApplicationCS\ScriptApplicationCS.sln");
-        var project = await ReplayHost.InstrumentAsync(solution.Projects.Single());
+        var project = await ReplayHost.InstrumentProjectAsync(solution.Projects.Single());
         var document = project.Documents.FirstOrDefault(d => Path.GetExtension(d.FilePath) == ".csx");
         if (document != null) Console.WriteLine($"{document.FilePath}\r\n{await document.GetTextAsync()}");
         var result = await ReplayHost.BuildAsync(project);
