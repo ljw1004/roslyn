@@ -2,6 +2,9 @@
 
 In C#6, async methods must return either `void` or `Task` or `Task<T>`. This proposed feature allows them to return any *tasklike* type.
 
+> Question about 'In C#6, async methods must return either void or Task or Task<T>.' statement above:
+> [`Task.ConfigureAwait`](https://msdn.microsoft.com/en-us/library/system.threading.tasks.task.configureawait%28v=vs.110%29.aspx?f=255&MSPPError=-2147217396) returns `ConfiguredTaskAwaitable` in C# 6. Isn't that invaldating this statement?
+
 > * **TRY IT OUT ONLINE:** [tryroslyn.azurewebsites.net](http://is.gd/Yjvb2P)
 > * **Download:** [ArbitraryAsyncReturns.zip](https://github.com/ljw1004/roslyn/raw/features/async-return/ArbitraryAsyncReturns.zip) [22mb]
 > * **Install in VS2015:** From the zip-file, double-click on RoslynDeployment.VSIX
