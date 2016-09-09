@@ -360,10 +360,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             {
                 foreach (VariableDeclaratorSyntax declarator in declarationSyntax.Variables)
                 {
-                    if (declarator.Initializer != null)
-                    {
-                        Visit(declarator.Initializer.Value, usingBinder);
-                    }
+                    Visit(declarator, usingBinder);
                 }
             }
 
@@ -401,10 +398,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             {
                 foreach (var variable in declaration.Variables)
                 {
-                    if (variable.Initializer != null)
-                    {
-                        Visit(variable.Initializer.Value, binder);
-                    }
+                    Visit(variable, binder);
                 }
             }
             else
@@ -478,10 +472,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             {
                 foreach (VariableDeclaratorSyntax declarator in node.Declaration.Variables)
                 {
-                    if (declarator.Initializer != null)
-                    {
-                        Visit(declarator.Initializer.Value, binder);
-                    }
+                    Visit(declarator, binder);
                 }
             }
 
@@ -651,19 +642,19 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             foreach (var decl in node.Declaration.Variables)
             {
-                var value = decl.Initializer?.Value;
-                if (value != null)
-                {
-                    Visit(value, _enclosing);
-                }
+                Visit(decl);
             }
+        }
+
+        public override void VisitVariableDeclarator(VariableDeclaratorSyntax node)
+        {
+            Visit(node.ArgumentList);
+            Visit(node.Initializer?.Value);
         }
 
         public override void VisitDeconstructionDeclarationStatement(DeconstructionDeclarationStatementSyntax node)
         {
-            var patternBinder = new ExpressionVariableBinder(node, _enclosing);
-            AddToMap(node, patternBinder);
-            Visit(node.Assignment.Value, patternBinder);
+            Visit(node.Assignment.Value, _enclosing);
         }
 
         public override void VisitReturnStatement(ReturnStatementSyntax node)
@@ -745,6 +736,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             switch (statement.Kind())
             {
                 case SyntaxKind.LocalDeclarationStatement:
+                case SyntaxKind.DeconstructionDeclarationStatement:
                 case SyntaxKind.LabeledStatement:
                 case SyntaxKind.LocalFunctionStatement:
                 // It is an error to have a declaration or a label in an embedded statement,

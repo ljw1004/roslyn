@@ -3390,6 +3390,7 @@ parse_member_name:;
             var expression = this.ParseExpressionCore();
             if (refKeyword != default(SyntaxToken))
             {
+                expression = CheckValidLvalue(expression);
                 expression = _syntaxFactory.RefExpression(refKeyword, expression);
             }
 
@@ -4771,11 +4772,19 @@ tryAgain:
                                 currentTokenKind == SyntaxKind.MinusGreaterThanToken ||
                                 isNonEqualsBinaryToken)
                             {
-                                var missingIdentifier = CreateMissingIdentifierToken();
-                                missingIdentifier = this.AddError(missingIdentifier, offset, width, ErrorCode.ERR_IdentifierExpected);
+                                var isPossibleLocalFunctionToken =
+                                    currentTokenKind == SyntaxKind.OpenParenToken ||
+                                    currentTokenKind == SyntaxKind.LessThanToken;
 
-                                localFunction = null;
-                                return _syntaxFactory.VariableDeclarator(missingIdentifier, null, null);
+                                // Make sure this isn't a local function
+                                if (!isPossibleLocalFunctionToken || !IsLocalFunctionAfterIdentifier())
+                                {
+                                    var missingIdentifier = CreateMissingIdentifierToken();
+                                    missingIdentifier = this.AddError(missingIdentifier, offset, width, ErrorCode.ERR_IdentifierExpected);
+
+                                    localFunction = null;
+                                    return _syntaxFactory.VariableDeclarator(missingIdentifier, null, null);
+                                }
                             }
                         }
                     }
@@ -4834,6 +4843,7 @@ tryAgain:
                     var init = this.ParseVariableInitializer(isLocal && !isConst);
                     if (refKeyword != null)
                     {
+                        init = CheckValidLvalue(init);
                         init = _syntaxFactory.RefExpression(refKeyword, init);
                     }
 
@@ -4940,6 +4950,36 @@ tryAgain:
 
             localFunction = null;
             return _syntaxFactory.VariableDeclarator(name, argumentList, initializer);
+        }
+
+        // Is there a local function after an eaten identifier?
+        private bool IsLocalFunctionAfterIdentifier()
+        {
+            Debug.Assert(this.CurrentToken.Kind == SyntaxKind.OpenParenToken ||
+                         this.CurrentToken.Kind == SyntaxKind.LessThanToken);
+            var resetPoint = this.GetResetPoint();
+
+            try
+            {
+                var typeParameterListOpt = this.ParseTypeParameterList(allowVariance: false);
+                var paramList = ParseParenthesizedParameterList(
+                    allowThisKeyword: true, allowDefaults: true, allowAttributes: true);
+
+                if (!paramList.IsMissing &&
+                     (this.CurrentToken.Kind == SyntaxKind.OpenBraceToken ||
+                      this.CurrentToken.Kind == SyntaxKind.EqualsGreaterThanToken ||
+                      this.CurrentToken.ContextualKind == SyntaxKind.WhereKeyword))
+                {
+                    return true;
+                }
+
+                return false;
+            }
+            finally
+            {
+                Reset(ref resetPoint);
+                Release(ref resetPoint);
+            }
         }
 
         private bool IsPossibleEndOfVariableDeclaration()
@@ -7425,6 +7465,7 @@ tryAgain:
                 case SyntaxKind.LabeledStatement:
                 case SyntaxKind.LocalDeclarationStatement:
                 case SyntaxKind.LocalFunctionStatement:
+                case SyntaxKind.DeconstructionDeclarationStatement:
                     statement = this.AddError(statement, ErrorCode.ERR_BadEmbeddedStmt);
                     break;
             }
@@ -7875,7 +7916,7 @@ tryAgain:
 
             var openParen = this.EatToken(SyntaxKind.OpenParenToken);
 
-            var deconstruction = TryParseDeconstructionDeclaration();
+            var deconstruction = TryParseDeconstructionDeclaration(SyntaxKind.InKeyword);
 
             TypeSyntax type = null;
             SyntaxToken name = null;
@@ -8363,7 +8404,7 @@ tryAgain:
         private VariableComponentAssignmentSyntax TryParseDeconstructionDeclarationAssignment()
         {
             if (this.CurrentToken.Kind == SyntaxKind.OpenParenToken
-               || (CurrentToken.IsVar() && this.PeekToken(1).Kind == SyntaxKind.OpenParenToken))
+               || CurrentToken.IsVarOrPredefinedType() && this.PeekToken(1).Kind == SyntaxKind.OpenParenToken)
             {
                 var resetPoint = this.GetResetPoint();
 
@@ -8393,17 +8434,17 @@ tryAgain:
         /// <summary>
         /// Returns null and resets the pointer if this does not look like a deconstruction-declaration after all.
         /// </summary>
-        private VariableComponentSyntax TryParseDeconstructionDeclaration()
+        private VariableComponentSyntax TryParseDeconstructionDeclaration(SyntaxKind nextExpectedKind)
         {
             if (this.CurrentToken.Kind == SyntaxKind.OpenParenToken
-               || (CurrentToken.IsVar() && this.PeekToken(1).Kind == SyntaxKind.OpenParenToken))
+               || CurrentToken.IsVarOrPredefinedType() && this.PeekToken(1).Kind == SyntaxKind.OpenParenToken)
             {
                 var resetPoint = this.GetResetPoint();
 
                 try
                 {
                     var deconstruction = ParseDeconstructionComponent(true);
-                    if (deconstruction == null)
+                    if (deconstruction == null || CurrentToken.Kind != nextExpectedKind)
                     {
                         this.Reset(ref resetPoint);
                         return null;
@@ -8412,7 +8453,6 @@ tryAgain:
                     {
                         return deconstruction;
                     }
-
                 }
                 finally
                 {
@@ -8432,8 +8472,8 @@ tryAgain:
         /// </summary>
         private VariableComponentAssignmentSyntax ParseDeconstructionDeclarationAssignment()
         {
-            var component = ParseDeconstructionComponent(true);
-            if (component == null || this.CurrentToken.Kind != SyntaxKind.EqualsToken) return null;
+            var component = TryParseDeconstructionDeclaration(SyntaxKind.EqualsToken);
+            if (component == null) return null;
             var equalsToken = this.EatToken(SyntaxKind.EqualsToken);
             var value = this.ParseExpressionCore();
             return _syntaxFactory.VariableComponentAssignment(component, equalsToken, value);
@@ -8450,7 +8490,7 @@ tryAgain:
         private VariableComponentSyntax ParseDeconstructionComponent(bool topLevel = false)
         {
             if (topLevel &&
-                !(this.CurrentToken.IsVar() && this.PeekToken(1).Kind == SyntaxKind.OpenParenToken || this.CurrentToken.Kind == SyntaxKind.OpenParenToken))
+                !(CurrentToken.IsVarOrPredefinedType() && this.PeekToken(1).Kind == SyntaxKind.OpenParenToken || this.CurrentToken.Kind == SyntaxKind.OpenParenToken))
             {
                 return null;
             }
@@ -8482,29 +8522,44 @@ tryAgain:
             }
             else
             {
-                var type = ParseType(false);
+                TypeSyntax type;
+                bool reportMissingType = false;
+                if (this.CurrentToken.Kind == SyntaxKind.IdentifierToken &&
+                    (this.PeekToken(1).Kind == SyntaxKind.CommaToken || this.PeekToken(1).Kind == SyntaxKind.CloseParenToken))
+                {
+                    var missingType = CreateMissingIdentifierToken();
+                    type = _syntaxFactory.IdentifierName(missingType);
+                    reportMissingType = true;
+                }
+                else
+                {
+                    type = ParseType(false);
+                }
+
                 VariableDesignationSyntax designation = ParseDeconstructionDesignation(topLevel);
+                if (reportMissingType)
+                {
+                    designation = this.AddError(designation, ErrorCode.ERR_TypeExpected);
+                }
+
                 result = _syntaxFactory.TypedVariableComponent(type, designation);
             }
 
             return
-                topLevel ? (DeconstructionComponentLooksGood(result) ? CheckFeatureAvailability(result, MessageID.IDS_FeatureTuples) : null) : result;
+                topLevel ? (ComponentHasTypes(result) ? CheckFeatureAvailability(result, MessageID.IDS_FeatureTuples) : null) : result;
         }
 
-        private bool DeconstructionComponentLooksGood(VariableComponentSyntax node, bool topLevel = true)
+        private static bool ComponentHasTypes(VariableComponentSyntax node)
         {
             switch (node.Kind)
             {
                 case SyntaxKind.ParenthesizedVariableComponent:
                     {
                         var syntax = (ParenthesizedVariableComponentSyntax)node;
-                        if (syntax.Variables.Count <= 1) return false;
-                        for (int i = 0; i < syntax.Variables.Count; i += 2)
+                        if (syntax.Variables.Count <= 1) return false; // don't count 1ples
+                        for (int i = 0; i < syntax.Variables.Count; i++)
                         {
-                            if (DeconstructionComponentLooksGood(syntax.Variables[i], false))
-                            {
-                                return true;
-                            }
+                            if (ComponentHasTypes(syntax.Variables[i])) return true;
                         }
 
                         return false;
@@ -8512,35 +8567,14 @@ tryAgain:
                 case SyntaxKind.TypedVariableComponent:
                     {
                         var syntax = (TypedVariableComponentSyntax)node;
+                        if (syntax.Type.IsMissing || syntax.Designation.IsMissing) return false;
                         if (syntax.Designation.Kind == SyntaxKind.ParenthesizedVariableDesignation)
                         {
-                            // check that the type is "var"
-                            if (syntax.Type.Kind != SyntaxKind.IdentifierName ||
-                                !((IdentifierNameSyntax)syntax.Type).Identifier.IsVar()) return false;
-                            return DeconstructionDesignationLooksGood(syntax.Designation, topLevel);
+                            return (syntax.Type.Kind == SyntaxKind.IdentifierName) && ((IdentifierNameSyntax)syntax.Type).Identifier.IsVar()
+                                   || syntax.Type.Kind == SyntaxKind.PredefinedType;
                         }
-                        else
-                        {
-                            return syntax.Designation.Width != 0 && !topLevel;
-                        }
-                    }
-                default:
-                    throw ExceptionUtilities.UnexpectedValue(node.Kind);
-            }
-        }
 
-        private bool DeconstructionDesignationLooksGood(VariableDesignationSyntax node, bool topLevel)
-        {
-            switch (node.Kind)
-            {
-                case SyntaxKind.SingleVariableDesignation:
-                    {
-                        return !topLevel;
-                    }
-                case SyntaxKind.ParenthesizedVariableDesignation:
-                    {
-                        var syntax = (ParenthesizedVariableDesignationSyntax)node;
-                        return syntax.Variables.Count > 1;
+                        return true;
                     }
                 default:
                     throw ExceptionUtilities.UnexpectedValue(node.Kind);
@@ -8588,7 +8622,7 @@ tryAgain:
         /// </summary>
         private bool IsPossibleDeconstructionDeclaration()
         {
-            if ((this.CurrentToken.IsVar() && this.PeekToken(1).Kind == SyntaxKind.OpenParenToken) ||
+            if (CurrentToken.IsVarOrPredefinedType() && this.PeekToken(1).Kind == SyntaxKind.OpenParenToken ||
                 this.CurrentToken.Kind == SyntaxKind.OpenParenToken)
             {
                 var resetPoint = this.GetResetPoint();
@@ -9216,6 +9250,11 @@ tryAgain:
                 newPrecedence = GetPrecedence(opKind);
                 var opToken = this.EatToken();
                 var operand = this.ParseSubExpression(newPrecedence);
+                if (SyntaxFacts.IsIncrementOrDecrementOperator(opToken.Kind))
+                {
+                    operand = CheckValidLvalue(operand);
+                }
+
                 leftOperand = _syntaxFactory.PrefixUnaryExpression(opKind, opToken, operand);
             }
             else if (IsAwaitExpression())
@@ -9334,6 +9373,7 @@ tryAgain:
                             opToken = AddTrailingSkippedSyntax(opToken, refToken);
                         }
 
+                        leftOperand = CheckValidLvalue(leftOperand);
                         leftOperand = _syntaxFactory.AssignmentExpression(opKind, leftOperand, opToken, this.ParseSubExpression(newPrecedence));
                     }
                     else
@@ -9532,6 +9572,7 @@ tryAgain:
 
                     case SyntaxKind.PlusPlusToken:
                     case SyntaxKind.MinusMinusToken:
+                        expr = CheckValidLvalue(expr);
                         expr = _syntaxFactory.PostfixUnaryExpression(SyntaxFacts.GetPostfixUnaryExpression(tk), expr, this.EatToken());
                         break;
 
@@ -9798,8 +9839,7 @@ tryAgain:
                 // However, we actually do support ref indexing of indexed properties in COM interop
                 // scenarios, and when indexing an object of static type "dynamic". So we enforce
                 // that the ref/out of the argument must match the parameter when binding the argument list.
-                if (!isIndexer && refOrOutKeyword?.Kind == SyntaxKind.OutKeyword &&
-                    IsPossibleOutVarDeclaration())
+                if (refOrOutKeyword?.Kind == SyntaxKind.OutKeyword && IsPossibleOutVarDeclaration())
                 {
                     TypeSyntax typeSyntax = ParseType(parentIsParameter: false);
                     SyntaxToken identifier = CheckFeatureAvailability(this.ParseIdentifierToken(), MessageID.IDS_FeatureOutVar);
@@ -9811,10 +9851,44 @@ tryAgain:
                 else
                 {
                     expression = this.ParseSubExpression(Precedence.Expression);
+
+                    if (refOrOutKeyword != null)
+                    {
+                        expression = CheckValidLvalue(expression);
+                    }
                 }
             }
 
             return _syntaxFactory.Argument(nameColon, refOrOutKeyword, expression);
+        }
+
+        private ExpressionSyntax CheckValidLvalue(ExpressionSyntax expression)
+        {
+            return IsDeconstructionCompatibleArgument(expression)
+                ? this.AddError(expression, ErrorCode.ERR_VarInvocationLvalueReserved)
+                : expression;
+        }
+
+        /// <summary>
+        /// See if the expression is an invocation of a method named 'var',
+        /// I.e. something like "var(x, y)" or "var(x, (y, z))" or "var(1)".
+        /// We report an error when such an invocation is used in a certain syntactic contexts that
+        /// will require an lvalue because we may elect to support deconstruction
+        /// in the future. We need to ensure that we do not successfully interpret this as an invocation of a
+        /// ref-returning method named var.
+        /// </summary>
+        private static bool IsDeconstructionCompatibleArgument(ExpressionSyntax expression)
+        {
+            if (expression.Kind == SyntaxKind.InvocationExpression)
+            {
+                var invocation = (InvocationExpressionSyntax)expression;
+                ExpressionSyntax invocationTarget = invocation.Expression;
+
+                return invocationTarget.Kind == SyntaxKind.IdentifierName &&
+                    ((IdentifierNameSyntax)invocationTarget).Identifier.IsVar();
+            }
+
+            return false;
         }
 
         private bool IsPossibleOutVarDeclaration()
